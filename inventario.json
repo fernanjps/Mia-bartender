@@ -1,0 +1,43 @@
+{
+  "ingredientes_conectados": [
+    "Ron",
+    "Vodka",
+    "Limón",
+    "Menta",
+    "Azúcar",
+    "Soda",
+    "Coca-Cola",
+    "Agua Tónica",
+    "Jugo de Naranja"
+  ],
+  "recetario_maestro": [
+    {
+      "nombre": "Mojito",
+      "ingredientes": ["Ron", "Limón", "Menta", "Azúcar", "Soda"]
+    },
+    {
+      "nombre": "Cuba Libre",
+      "ingredientes": ["Ron", "Coca-Cola", "Limón"]
+    },
+    {
+      "nombre": "Vodka Tonic",
+      "ingredientes": ["Vodka", "Agua Tónica", "Limón"]
+    },
+    {
+      "nombre": "Tequila Sunrise",
+      "ingredientes": ["Tequila", "Jugo de Naranja", "Granadina"]
+    },
+    {
+      "nombre": "Gin Tonic",
+      "ingredientes": ["Ginebra", "Agua Tónica", "Limón"]
+    },
+    {
+      "nombre": "Margarita",
+      "ingredientes": ["Tequila", "Triple Sec", "Jugo de Limón"]
+    },
+    {
+      "nombre": "Destornillador",
+      "ingredientes": ["Vodka", "Jugo de Naranja"]
+    }
+  ]
+}

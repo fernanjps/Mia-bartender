@@ -1,0 +1,7 @@
+opencv-python
+ollama
+pyttsx3
+SpeechRecognition
+pyaudio
+numpy
+chromadb
