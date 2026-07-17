@@ -38,12 +38,17 @@
         }
         .avatar-container {
             width: 95vw;
-            max-width: 88vh; /* Más grande en base a la altura para que llene casi toda la pantalla */
+            max-width: 1400px; /* Permitir que llene más el ancho de la pantalla */
+            max-height: 70vh;
+            display: flex;
+            justify-content: center;
             transition: all 0.3s ease;
         }
         #avatar-img {
             width: 100%;
-            height: auto;
+            height: 100%;
+            max-height: 65vh;
+            object-fit: contain;
             border-radius: 20px;
             box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
             transition: box-shadow 0.3s, transform 0.12s ease-out;
@@ -80,8 +85,58 @@
             margin-top: 20px;
         }
 
+        /* Drink Menu Overlay */
+        #drink-menu {
+            position: absolute;
+            left: 30px;
+            bottom: 120px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            border-radius: 15px;
+            padding: 20px;
+            font-family: 'Orbitron', sans-serif;
+            color: #ccc;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .menu-title {
+            color: #00f0ff;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            border-bottom: 1px solid rgba(0, 240, 255, 0.3);
+            padding-bottom: 5px;
+        }
+        .menu-item {
+            font-size: 1rem;
+            transition: all 0.3s;
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .menu-item .pump {
+            color: #00f0ff;
+            font-weight: bold;
+        }
+        .menu-item.active {
+            color: #fff;
+            text-shadow: 0 0 10px #00f0ff;
+            transform: scale(1.05);
+            margin-left: 10px;
+        }
+
         /* Responsive Layout */
         @media (max-width: 600px) {
+            #drink-menu {
+                left: 10px;
+                bottom: 110px;
+                padding: 15px;
+                font-size: 0.8rem;
+            }
             .subtitle-box {
                 min-height: 80px;
                 max-width: 600px;
@@ -182,6 +237,23 @@
 <body>
     <div id="particles-bg"></div>
     
+    <!-- Drink Menu Overlay -->
+    <div id="drink-menu">
+        <div class="menu-title">Drinks Menu</div>
+        <div class="menu-item" id="menu-tormenta">
+            <span>Tormenta Púrpura</span> <span class="pump">[1]</span>
+        </div>
+        <div class="menu-item" id="menu-brisa">
+            <span>Brisa Marina</span> <span class="pump">[2]</span>
+        </div>
+        <div class="menu-item" id="menu-atardecer">
+            <span>Atardecer</span> <span class="pump">[3]</span>
+        </div>
+        <div class="menu-item" id="menu-bandera">
+            <span>La Bandera</span> <span class="pump">[4]</span>
+        </div>
+    </div>
+    
     <!-- Eliminamos el video oculto y canvas ya que usaremos la cámara local de la laptop -->
     <div class="mia-container">
         <div id="unlock-overlay">
@@ -205,12 +277,8 @@
         <div class="subtitle-box" id="subtitle-box">
             <p id="subtitle-text">...</p>
         </div>
-
-        <div class="controls">
-            <button id="btn-ptt" title="Toca para hablar con MIA">🎤 HABLAR</button>
-            <button id="btn-vision" title="Analizar Entorno (Cámara Laptop)">📷</button>
-        </div>
-    </div>
+    
+    <!-- Eliminados: Botones físicos, todo se maneja por celular nativo -->
 
     <!-- SOCKET IO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
@@ -500,6 +568,7 @@
                     break;
 
                 case 'idle':
+                    document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
                     stateText.textContent = 'DURMIENDO';
                     stateText.style.color = '#444';
                     subtitleText.textContent = '...';
@@ -509,6 +578,22 @@
                     }
                     avatarImg.src = imgMap[currentEmotion] || imgMap.neutral;
                     avatarImg.style.boxShadow = '0 0 20px rgba(100,100,100,0.5)';
+                    break;
+
+                case 'preparing_drink':
+                    stateText.textContent = 'PREPARANDO';
+                    stateText.style.color = '#ff8800';
+                    subtitleText.textContent = 'Preparando: ' + text;
+                    avatarImg.src = imgMap.feliz;
+                    avatarImg.style.boxShadow = '0 0 30px #ff8800';
+                    
+                    // Resaltar en el menú
+                    document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+                    let drinkClass = text.toLowerCase().replace(" ", "");
+                    if (drinkClass.includes("tormenta") || drinkClass.includes("purpura") || drinkClass.includes("púrpura")) document.getElementById("menu-tormenta").classList.add("active");
+                    if (drinkClass.includes("brisa") || drinkClass.includes("marina")) document.getElementById("menu-brisa").classList.add("active");
+                    if (drinkClass.includes("atardecer")) document.getElementById("menu-atardecer").classList.add("active");
+                    if (drinkClass.includes("bandera")) document.getElementById("menu-bandera").classList.add("active");
                     break;
 
                 case 'listening':
@@ -536,14 +621,31 @@
                     avatarImg.style.boxShadow = '0 0 50px rgba(255, 51, 102, 0.8)';
                     break;
 
-                case 'preparing_drink':
-                    stateText.textContent = 'PREPARANDO CÓCTEL';
-                    stateText.style.color = '#ff8800';
-                    subtitleText.textContent = `Sirviendo tu ${text || 'bebida'}... 🍹`;
-                    avatarImg.src = imgMap.feliz;
-                    avatarImg.style.boxShadow = '0 0 50px rgba(255, 136, 0, 0.8)';
-                    break;
+
             }
+        });
+
+        // --- Nueva lógica de emociones directas ---
+        socket.on('emotion_update', (data) => {
+            const emot = data.emotion;
+            if (imgMap[emot]) {
+                currentEmotion = emot;
+                if (!isTalking) {
+                    avatarImg.src = imgMap[emot];
+                }
+            }
+        });
+
+        // --- Interrupción de audio ---
+        socket.on('stop_audio', () => {
+            console.log("⏹️ Interrupción de audio recibida");
+            audioQueue = []; // Vaciar cola
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+            isPlaying = false;
+            stopTalkingAnimation();
         });
 
         // --- Cola de Audio para Streaming (Chunked TTS) ---
@@ -555,7 +657,7 @@
             const audioB64 = data.audio_b64;
             const text = data.text;
             
-            // Analizar la emoción del fragmento que llega
+            // Analizar la emoción del fragmento que llega (Legacy fallback)
             const newEmot = analyzeEmotion(text);
             if(newEmot !== 'neutral') currentEmotion = newEmot;
             
@@ -641,107 +743,6 @@
                 audioCtx.resume();
             }
         }
-
-        // --- 🎤 Web Speech Recognition PTT ---
-        const btnPtt = document.getElementById('btn-ptt');
-        const btnVision = document.getElementById('btn-vision');
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition = null;
-        let isListeningPTT = false;
-
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.lang = 'es-ES';
-            recognition.continuous = false;
-            recognition.interimResults = true;
-            recognition.maxAlternatives = 1;
-
-            recognition.onstart = () => {
-                isListeningPTT = true;
-                btnPtt.textContent = '🔴 ESCUCHANDO...';
-                btnPtt.classList.add('listening');
-                btnPtt.classList.remove('processing');
-                // Notificar al servidor que está escuchando
-                socket.emit('state_update_from_client', { state: 'listening' });
-            };
-
-            recognition.onresult = (event) => {
-                let interimTranscript = '';
-                let finalTranscript = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        finalTranscript += transcript;
-                    } else {
-                        interimTranscript += transcript;
-                    }
-                }
-                // Mostrar transcripción en tiempo real
-                if (interimTranscript) {
-                    subtitleText.textContent = '🎙️ ' + interimTranscript;
-                }
-                if (finalTranscript) {
-                    console.log('🎤 Enviando a MIA:', finalTranscript);
-                    subtitleText.textContent = '👤 ' + finalTranscript;
-                    socket.emit('user_command', { text: finalTranscript });
-                }
-            };
-
-            recognition.onend = () => {
-                isListeningPTT = false;
-                btnPtt.textContent = '🎤 HABLAR';
-                btnPtt.classList.remove('listening');
-                btnPtt.classList.remove('processing');
-            };
-
-            recognition.onerror = (event) => {
-                isListeningPTT = false;
-                btnPtt.textContent = '🎤 HABLAR';
-                btnPtt.classList.remove('listening');
-                console.error('STT Error:', event.error);
-                if (event.error === 'not-allowed') {
-                    subtitleText.textContent = '⚠️ Permiso de micrófono denegado';
-                } else if (event.error === 'no-speech') {
-                    subtitleText.textContent = '🤫 No te escuché, intenta de nuevo';
-                }
-                setTimeout(() => { subtitleText.textContent = '...'; }, 3000);
-            };
-
-            btnPtt.addEventListener('click', () => {
-                unlockAudio();
-                if (!isListeningPTT) {
-                    try {
-                        recognition.start();
-                    } catch(e) {
-                        console.warn('Recognition restart:', e);
-                    }
-                } else {
-                    recognition.stop();
-                }
-            });
-
-        } else {
-            // Navegador no soporta Web Speech Recognition
-            btnPtt.textContent = '❌ Sin soporte de voz';
-            btnPtt.disabled = true;
-            btnPtt.title = 'Usa Chrome o Brave para soporte de voz';
-        }
-
-        // --- Botón Especial de Visión ---
-        btnVision.addEventListener('click', () => {
-            unlockAudio();
-            console.log("📸 Solicitando visión (usará cámara de la laptop)");
-            socket.emit('request_vision');
-            btnVision.style.borderColor = '#ff3366';
-            btnVision.style.color = '#ff3366';
-            setTimeout(() => {
-                btnVision.style.borderColor = '';
-                btnVision.style.color = '';
-            }, 2000);
-        });
-
     </script>
 </body>
 </html>
-

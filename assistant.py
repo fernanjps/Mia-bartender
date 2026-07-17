@@ -1,6 +1,6 @@
 import threading
 import time
-from queue import Empty
+from queue import Empty, Queue
 from eye import Eye
 from ear import Ear
 from voice import Voice
@@ -9,7 +9,7 @@ from robot_control import RobotControl
 from config import (
     VISUAL_COMMENT_COOLDOWN, VISION_CHECK_INTERVAL,
     VISION_POST_COMMENT_PAUSE, HEALTH_CHECK_INTERVAL,
-    PROACTIVE_VISION, VISION_KEYWORDS
+    PROACTIVE_VISION, VISION_KEYWORDS, ENABLE_BACKEND_MIC
 )
 
 
@@ -31,8 +31,14 @@ class VoiceAssistant:
         print("=" * 50)
 
         self.socketio = socketio
+        self.audio_queue = Queue()  # Cola principal si el Ear está apagado
+        
         self.eye = Eye()
-        self.ear = Ear(socketio=self.socketio)
+        
+        self.ear = Ear(socketio=self.socketio) if ENABLE_BACKEND_MIC else None
+        if not ENABLE_BACKEND_MIC:
+            print("🎧 Sistema de escucha backend (laptop) DESACTIVADO. Usando S25 Ultra nativo.")
+            
         self.voice = Voice()
         self.brain = Brain()
         self.robot = RobotControl()
@@ -56,11 +62,13 @@ class VoiceAssistant:
         self.latest_frontend_image = None
 
         # Anti-eco y prevención de conflictos de audio:
-        self.ear.set_mute_check(lambda: self._speaking_lock.locked() or self.voice.is_speaking)
+        if self.ear:
+            self.ear.set_mute_check(lambda: self._speaking_lock.locked() or self.voice.is_speaking)
 
         # Confirmación auditiva: cuando detecta "Hey MIA", dice "¿Sí?"
         # para que el usuario sepa que debe hablar
-        self.ear.set_wake_callback(lambda: self.voice.speak_async("¿Sí?"))
+        if self.ear:
+            self.ear.set_wake_callback(lambda: self.voice.speak_async("¿Sí?"))
 
         print("=" * 50)
         print("✅ MIA lista para funcionar")
@@ -133,28 +141,33 @@ class VoiceAssistant:
             self.on_state_change(new_state, data)
 
     def _listen_for_commands(self):
-        """Escucha comandos del usuario activados por wake word 'Hey MIA'
+        """Escucha comandos del usuario activados por wake word 'Hey MIA' o desde PTT/Web
 
         Routing inteligente:
         - Comando con palabra visual (mira, observa, etc.) → cámara + cerebro
         - Comando normal (di hola, cuéntame, etc.) → solo cerebro (rápido)
         """
-        print("🎤 Thread de audio iniciado")
+        print("🎤 Thread de procesamiento de comandos iniciado")
 
-        # Configurar callback cuando Ear.py entra en modo activo "escuchando" (Para la Laptop/Pantalla Gigante)
-        self.ear.set_wake_callback(lambda: [
-            self.set_state("listening"), 
-            self.voice.speak_async("¿Sí?")
-        ])
+        if self.ear:
+            # Configurar callback cuando Ear.py entra en modo activo "escuchando"
+            self.ear.set_wake_callback(lambda: [
+                self.set_state("listening"), 
+                self.voice.speak_async("¿Sí?")
+            ])
 
-        # Iniciar escucha continua hibrida (El PTT Web también inyectará a esta misma cola)
-        self.ear.start_listening_thread()
-        print("🎧 Sistema Híbrido Activado: Escuchando micrófono Windows y Web PTT simultáneamente.")
+            # Iniciar escucha continua pasiva en Windows
+            self.ear.start_listening_thread()
+            print("🎧 Sistema Híbrido Activado: Escuchando micrófono Windows y Web PTT simultáneamente.")
+        else:
+            print("🎧 Escucha pasiva de Windows desactivada. MIA solo responderá a Web PTT o Auto-Escucha Web.")
 
         while self.is_running:
             try:
                 # Esperar comando transcrito (de PTT Web o de Ear.py)
-                user_input = self.ear.audio_queue.get(timeout=1)
+                # Si ear no existe, leemos de self.audio_queue directamente
+                queue_to_read = self.ear.audio_queue if self.ear else self.audio_queue
+                user_input = queue_to_read.get(timeout=1)
 
                 print(f"👤 Usuario dice: {user_input}")
 
@@ -221,23 +234,38 @@ class VoiceAssistant:
                                 return
                                 
                             combined = buffered_text + text
-                            if '[' in combined:
-                                if ']' in combined:
-                                    # Capturar cualquier tag del robot (ej. [ROBOT:PREPARAR:mojito] o [ROBOT:RECOMENDAR])
-                                    match = re.search(r'\[ROBOT:([^\]]+)\]', combined)
-                                    if match:
-                                        content = match.group(1).strip()
-                                        if content.startswith("PREPARAR:") or content.startswith("MEZCLAR:"):
-                                            robot_command = content
-                                        combined = re.sub(r'\[ROBOT:[^\]]+\]', '', combined)
-                                    clean_text = combined.strip()
-                                    buffered_text = ""
-                                    if clean_text:
-                                        yield clean_text
-                                else:
-                                    buffered_text = combined
-                            else:
-                                yield text
+                            if '[' in combined and ']' not in combined:
+                                buffered_text = combined
+                                return
+
+                            # Capturar emoción explícita (con o sin corchetes perfectos)
+                            match_emotion = re.search(r'\[?EMOCI[OÓ]N:\s*([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\]?', combined, re.IGNORECASE)
+                            if match_emotion:
+                                emotion_val = match_emotion.group(1).strip().lower()
+                                self.socketio.emit('emotion_update', {'emotion': emotion_val})
+                                print(f"🎭 Emoción detectada: {emotion_val}")
+                                combined = re.sub(r'\[?EMOCI[OÓ]N:\s*[a-zA-ZáéíóúÁÉÍÓÚñÑ]+\]?', '', combined, flags=re.IGNORECASE)
+
+                            # Capturar comando del robot (con o sin corchetes)
+                            match_robot = re.search(r'\[?ROBOT:PREPARAR:?\s*([^\]\.\-]+?)(?=\]|\.|\-|$)', combined, re.IGNORECASE)
+                            if match_robot:
+                                drink_name = match_robot.group(1).strip()
+                                robot_command = f"PREPARAR:{drink_name}"
+                                combined = re.sub(r'\[?ROBOT:PREPARAR:?\s*[^\]\.\-]+\]?', '', combined, flags=re.IGNORECASE)
+
+                            # Separar por signos de puntuación finales
+                            import re as regex
+                            # Buscamos puntos, signos de exclamación/interrogación seguidos opcionalmente de un espacio
+                            sentences = regex.split(r'(?<=[.!?\n])\s*', combined)
+                            
+                            # Todas las oraciones completas (excepto la última si no termina en puntuación)
+                            for i in range(len(sentences) - 1):
+                                clean_text = sentences[i].strip()
+                                if clean_text:
+                                    yield clean_text
+                            
+                            # La última parte queda en el buffer esperando más texto
+                            buffered_text = sentences[-1]
 
                         for chunk in raw_response_gen:
                             # Si estamos dentro de un bloque <think>
@@ -279,6 +307,11 @@ class VoiceAssistant:
                                     
                                 yield from process_clean_text(chunk)
                                 
+                        # Vaciar cualquier texto restante en el buffer si no es JSON
+                        if not is_json_response and buffered_text.strip():
+                            yield buffered_text.strip()
+                            buffered_text = ""
+                            
                         # Si era JSON, procesarlo todo al final y yield el texto
                         if is_json_response and full_response_buffer.strip():
                             clean_res = full_response_buffer.strip()
@@ -342,11 +375,7 @@ class VoiceAssistant:
                         self.voice.wait_until_done()
                         self.set_state("all_audio_sent")
                         
-                        # Ahora bloqueamos la reactivación de listening local del orquestador 
-                        # hasta que el celular confirme que la COLA EN JavaScript terminó de sonar.
-                        self.audio_playback_done.wait(timeout=60.0)
-                        
-                        # Si hay comando de robot, enviarlo y cambiar de estado
+                        # Si hay comando de robot, enviarlo INMEDIATAMENTE
                         if robot_command:
                             if robot_command.startswith("PREPARAR:"):
                                 readable_name = robot_command.replace("PREPARAR:", "", 1).strip()
@@ -359,9 +388,17 @@ class VoiceAssistant:
                                 thanks_text = f"Tu bebida está lista. ¡Disfrútala!"
                                 
                             self.set_state("preparing_drink", data=readable_name)
-                            print(f"🍹 Acción de Robot: {robot_command} ({readable_name})")
+                            print(f"⚙️ Acción de Robot: {robot_command} ({readable_name})")
                             self.robot.send_drink_command(robot_command)
-                            time.sleep(5) # Breve pausa visual de preparación
+                        
+                        # Ahora bloqueamos la reactivación de listening local del orquestador 
+                        # hasta que el celular confirme que la COLA EN JavaScript terminó de sonar.
+                        self.audio_playback_done.wait(timeout=60.0)
+                        
+                        # Si hay comando de robot, esperar a que termine y agradecer
+                        if robot_command:
+                            # MIA espera dinámicamente hasta que la Raspberry Pi diga que terminó
+                            self.robot.wait_for_drink_ready(timeout=120)
                             
                             # MIA habla automáticamente al terminar de preparar la bebida
                             self.set_state("speaking", data={"text": thanks_text})
@@ -456,7 +493,8 @@ class VoiceAssistant:
                     print(f"  🧠 S25 Ultra: {'Conectado' if connected else 'Desconectado'}")
                     print(f"  🧵 Hilos activos: {active}/{len(self._threads)}")
                     print(f"  📷 Cámara: On-demand ({'proactiva' if PROACTIVE_VISION else 'solo al hablar'})")
-                    print(f"  🎤 Wake word: {'escuchando comando' if self.ear.is_activated else 'esperando Hey MIA'}")
+                    ear_status = 'esperando' if self.ear else 'DESACTIVADO (usando S25/Web)'
+                    print(f"  🎤 Wake word: {ear_status}")
                     print(f"  🔇 Anti-eco: {'MUTED (MIA hablando)' if self.voice.is_speaking else 'escuchando'}")
                     print(f"  🧬 Memoria: {'Activa' if mem_stats['enabled'] else 'Desactivada'}"
                           f" — {mem_stats['conversations']} conversaciones, {mem_stats['knowledge']} conocimientos")

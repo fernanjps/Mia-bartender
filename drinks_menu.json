@@ -1,39 +1,24 @@
 {
   "bebidas": [
     {
-      "nombre": "Mojito",
-      "ingredientes": ["Ron", "Limón", "Menta", "Azúcar", "Soda"],
-      "descripcion": "Un clásico trago refrescante y aromático."
-    },
-    {
-      "nombre": "Cuba Libre",
-      "ingredientes": ["Ron", "Coca-Cola", "Limón"],
-      "descripcion": "El trago cubano clásico con ron y Coca-Cola."
-    },
-    {
-      "nombre": "Vodka Tonic",
-      "ingredientes": ["Vodka", "Agua Tónica", "Limón"],
-      "descripcion": "Una opción burbujeante y refrescante."
-    },
-    {
-      "nombre": "Tequila Sunrise",
-      "ingredientes": ["Tequila", "Jugo de Naranja", "Granadina"],
-      "descripcion": "Trago visualmente espectacular con capas de colores vibrantes."
-    },
-    {
-      "nombre": "Gin Tonic",
-      "ingredientes": ["Ginebra", "Agua Tónica", "Limón"],
-      "descripcion": "Sofisticado, fresco y ligeramente amargo."
-    },
-    {
       "nombre": "Margarita",
-      "ingredientes": ["Tequila", "Triple Sec", "Jugo de Limón"],
+      "ingredientes": ["Margarita (lista)"],
       "descripcion": "El famoso cóctel mexicano, perfecto balance entre ácido y dulce."
     },
     {
-      "nombre": "Destornillador",
-      "ingredientes": ["Vodka", "Jugo de Naranja"],
-      "descripcion": "Una mezcla simple pero de sabor clásico."
+      "nombre": "Cuba Libre",
+      "ingredientes": ["Cuba Libre (lista)"],
+      "descripcion": "El trago cubano clásico con ron y Coca-Cola."
+    },
+    {
+      "nombre": "Mojito",
+      "ingredientes": ["Mojito (listo)"],
+      "descripcion": "Un clásico trago refrescante y aromático."
+    },
+    {
+      "nombre": "Tequila Sunrise",
+      "ingredientes": ["Tequila Sunrise (listo)"],
+      "descripcion": "Trago visualmente espectacular con capas de colores vibrantes."
     }
   ]
 }

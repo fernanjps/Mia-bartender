@@ -1,43 +1,61 @@
 {
   "ingredientes_conectados": [
-    "Ron",
     "Vodka",
-    "Limón",
-    "Menta",
-    "Azúcar",
-    "Soda",
-    "Coca-Cola",
-    "Agua Tónica",
-    "Jugo de Naranja"
+    "Licor de mora",
+    "Jugo de limón",
+    "Sirope simple",
+    "Ginebra",
+    "Jugo de toronja",
+    "Jugo de arándano",
+    "Tequila",
+    "Jugo de naranja",
+    "Granadina",
+    "Ron blanco",
+    "Licor de melón",
+    "Jugo de piña"
   ],
-  "recetario_maestro": [
-    {
-      "nombre": "Mojito",
-      "ingredientes": ["Ron", "Limón", "Menta", "Azúcar", "Soda"]
-    },
-    {
-      "nombre": "Cuba Libre",
-      "ingredientes": ["Ron", "Coca-Cola", "Limón"]
-    },
-    {
-      "nombre": "Vodka Tonic",
-      "ingredientes": ["Vodka", "Agua Tónica", "Limón"]
-    },
-    {
-      "nombre": "Tequila Sunrise",
-      "ingredientes": ["Tequila", "Jugo de Naranja", "Granadina"]
-    },
-    {
-      "nombre": "Gin Tonic",
-      "ingredientes": ["Ginebra", "Agua Tónica", "Limón"]
-    },
-    {
-      "nombre": "Margarita",
-      "ingredientes": ["Tequila", "Triple Sec", "Jugo de Limón"]
-    },
-    {
-      "nombre": "Destornillador",
-      "ingredientes": ["Vodka", "Jugo de Naranja"]
-    }
-  ]
+  "bebidas": [
+        {
+            "id": 1,
+            "nombre": "Tormenta Púrpura",
+            "tipo": "coctel",
+            "ingredientes_necesarios": [
+                {"ingrediente": "Vodka", "cantidad_ml": 40},
+                {"ingrediente": "Licor de mora", "cantidad_ml": 20},
+                {"ingrediente": "Jugo de limón", "cantidad_ml": 15},
+                {"ingrediente": "Sirope simple", "cantidad_ml": 10}
+            ]
+        },
+        {
+            "id": 2,
+            "nombre": "Brisa Marina",
+            "tipo": "coctel",
+            "ingredientes_necesarios": [
+                {"ingrediente": "Ginebra", "cantidad_ml": 45},
+                {"ingrediente": "Jugo de toronja", "cantidad_ml": 60},
+                {"ingrediente": "Jugo de arándano", "cantidad_ml": 30}
+            ]
+        },
+        {
+            "id": 3,
+            "nombre": "Atardecer",
+            "tipo": "coctel",
+            "ingredientes_necesarios": [
+                {"ingrediente": "Tequila", "cantidad_ml": 45},
+                {"ingrediente": "Jugo de naranja", "cantidad_ml": 90},
+                {"ingrediente": "Granadina", "cantidad_ml": 15}
+            ]
+        },
+        {
+            "id": 4,
+            "nombre": "La Bandera",
+            "tipo": "coctel",
+            "ingredientes_necesarios": [
+                {"ingrediente": "Ron blanco", "cantidad_ml": 30},
+                {"ingrediente": "Licor de melón", "cantidad_ml": 30},
+                {"ingrediente": "Jugo de piña", "cantidad_ml": 30},
+                {"ingrediente": "Granadina", "cantidad_ml": 10}
+            ]
+        }
+    ]
 }

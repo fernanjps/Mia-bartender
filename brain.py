@@ -20,9 +20,9 @@ class Brain:
     def __init__(self):
         self.model = BRAIN_MODEL
 
-        # Redirección directa por USB (Cero latencia y sin depender de IPs de red)
-        self.active_ip = "127.0.0.1"
-        self.active_url = "http://localhost:8080/chat"
+        # Usar la URL que viene desde config.py (permite usar IP de WiFi si se desconecta el USB)
+        from config import BRAIN_URL
+        self.active_url = f"{BRAIN_URL}/chat"
 
         # Historial de sesión actual (corto plazo)
         self._history = []
@@ -104,7 +104,7 @@ class Brain:
                     self.active_url,
                     data=body_data,     # Texto puro en el body, perfecto para los cócteles
                     headers=headers,
-                    timeout=30.0        # Reducido a 30s para mayor responsividad
+                    timeout=30.0        # Restaurado a 30s para evitar fallas de red
                 )
                 response.raise_for_status() # Lanza error para 4xx/5xx
                 
@@ -137,34 +137,48 @@ Ve directo al grano (ej: "Veo que tienes un..."). Máximo 2 oraciones."""
         return response
 
     def _load_inventory(self):
+        """Devuelve las bebidas leyendo el inventario.json."""
         import json
-        inv_path = os.path.join(os.path.dirname(__file__), "inventario.json")
+        import os
+        from config import ROBOT_ENABLED
+        
+        if not ROBOT_ENABLED:
+            return {
+                "ingredientes": [],
+                "disponibles": [{"nombre": "Agua (Simulado)"}, {"nombre": "Jugo (Simulado)"}],
+                "no_disponibles": [],
+                "todas": []
+            }
+            
         try:
+            inv_path = os.path.join(os.path.dirname(__file__), "inventario.json")
             with open(inv_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            
+            recetario = data.get("bebidas", [])
+            disponibles = []
+            for item in recetario:
+                ingredientes_list = item.get("ingredientes_necesarios", [])
+                ing_str = ", ".join([ing.get("ingrediente", "") for ing in ingredientes_list])
+                disponibles.append({
+                    "nombre": item.get("nombre", ""),
+                    "descripcion": f"Lleva {ing_str}"
+                })
                 
-            connected = set([self._normalize(i) for i in data.get("ingredientes_conectados", [])])
-            master_recipes = data.get("recetario_maestro", [])
-            
-            available_drinks = []
-            unavailable_drinks = []
-            
-            for drink in master_recipes:
-                reqs = [self._normalize(ing) for ing in drink.get("ingredientes", [])]
-                if all(req in connected for req in reqs):
-                    available_drinks.append(drink)
-                else:
-                    unavailable_drinks.append(drink)
-                    
             return {
                 "ingredientes": data.get("ingredientes_conectados", []),
-                "disponibles": available_drinks,
-                "no_disponibles": unavailable_drinks,
-                "todas": master_recipes
+                "disponibles": disponibles,
+                "no_disponibles": [],
+                "todas": disponibles
             }
         except Exception as e:
-            print(f"⚠️ Error cargando inventario: {e}")
-        return None
+            print(f"⚠️ Error cargando inventario.json: {e}")
+            return {
+                "ingredientes": [],
+                "disponibles": [],
+                "no_disponibles": [],
+                "todas": []
+            }
 
     def _normalize(self, text):
         text = unicodedata.normalize("NFD", text or "")
@@ -285,8 +299,8 @@ Ve directo al grano (ej: "Veo que tienes un..."). Máximo 2 oraciones."""
         
         disponibles = []
         for drink in inv_data.get("disponibles", []):
-            ing_list = ", ".join(drink.get("ingredientes", []))
-            disponibles.append(f"{drink['nombre']} ({ing_list})")
+            desc = drink.get("descripcion", "")
+            disponibles.append(f"{drink['nombre']} ({desc})")
             
         disponibles_str = ", ".join(disponibles) if disponibles else "Ninguno"
         
@@ -360,13 +374,12 @@ Ve directo al grano (ej: "Veo que tienes un..."). Máximo 2 oraciones."""
             if memory_context:
                 print("🧬 Recuerdos relevantes encontrados y cargados en contexto")
 
-        # 6. Formatear el inventario de bebidas solo si se habla de tragos/cocteles
+        # 6. Formatear el inventario de bebidas SIEMPRE, para que MIA sepa exactamente qué tiene
+        # y no alucine cuando le piden tragos fuera del menú.
         menu_context = ""
-        drink_keywords = ["bebida", "beber", "trago", "cóctel", "coctel", "catálogo", "catalogo", "carta", "menú", "menu", "recomienda", "recomiendas", "sirve", "sirvas", "prepara", "mojito", "cuba", "vodka", "tequila", "gin", "margarita", "destornillador"]
-        if any(kw in normalized_input for kw in drink_keywords):
-            if inv_data:
-                menu_context = self._format_inventory_context(inv_data)
-                print("🍹 Inyectando inventario y bebidas disponibles en el prompt.")
+        if inv_data:
+            menu_context = self._format_inventory_context(inv_data)
+            print("🍹 Inyectando inventario y bebidas disponibles en el prompt.")
 
         history_text = self._format_history()
 

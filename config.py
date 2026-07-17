@@ -6,8 +6,8 @@ import os
 # --- Conexión al S25 Ultra (Ollama remoto / Tethering) ---
 S25_PORT = 8080
 S25_IPS = [
-    "10.193.241.97",    # IP WiFi actual del S25 Ultra (detectada por Socket.IO)
-    "192.168.100.153",  # IP WiFi S25 Ultra (red anterior)
+    "192.168.8.72",     # IP WiFi actual del S25 Ultra (Detectada por Socket.IO al conectarse)
+    "10.193.241.97",    # Red anterior
     "127.0.0.1",        # ADB Forward (USB Debugging)
     "localhost",        # ADB Forward Fallback
     "10.71.27.194",     # Fallback
@@ -52,15 +52,16 @@ WAKE_PHRASES = [
 ]
 
 # --- Audio / Ear ---
-MICROPHONE_NAME = "Microphone Array (AMD Audio"  # Micrófono integrado del laptop (confiable)
-# Alternativa AudioRelay: "Virtual Mic (Virtual Mic for AudioRelay)"
-# El Web PTT del navegador maneja el audio del celular independientemente
+# ENABLE_BACKEND_MIC = False apaga por completo la escucha en la laptop
+# Toda la escucha se hará nativamente desde el navegador del celular (Brave/Chrome)
+ENABLE_BACKEND_MIC = False
+MICROPHONE_NAME = "Microphone Array (AMD Audio"  # (Ignorado si ENABLE_BACKEND_MIC es False)
 LISTEN_TIMEOUT = 5            # Segundos de silencio antes de dejar de escuchar wake word
 COMMAND_TIMEOUT = 10          # Segundos esperando comando después de activarse
 COMMAND_PHRASE_LIMIT = 30     # Máximo de segundos hablando un comando
 AMBIENT_NOISE_DURATION = 1.5  # Segundos de calibración de ruido al inicio
 STT_LANGUAGE = "es-ES"        # Idioma para Google Speech-to-Text
-MIN_ENERGY_THRESHOLD = 1500    # AudioRelay Virtual Mic tiene nivel de energía más bajo que un mic físico
+MIN_ENERGY_THRESHOLD = 3500   # UMBRAL MUY ALTO para rechazar música. Para ambientes ruidosos se debe usar el botón PTT.
 
 # --- Vision / Eye ---
 CAMERA_INDEX = 0  # Cámara Web integrada de la Laptop USB (evita red Wi-Fi y latencias)
@@ -81,8 +82,8 @@ HEALTH_CHECK_INTERVAL = 120   # Segundos entre chequeos de salud (no saturar la 
 DEBUG_EAR = False             # True = imprimir todo lo que el micrófono escucha
 
 # --- Routing Inteligente (visión solo cuando se pide) ---
-# Si el comando contiene alguna de estas palabras → usar cámara + Moondream
-# Si no las contiene → responder rápido sin visión
+# Si el comando contiene alguna de estas palabras -> usar cámara + Moondream
+# Si no las contiene -> responder rápido sin visión
 VISION_KEYWORDS = [
     "mira", "observa", "foto", "fotografía",
     "imagen", "cámara", "camara", "muestra",
@@ -92,7 +93,7 @@ VISION_KEYWORDS = [
 ]
 
 # --- Conversation History ---
-MAX_HISTORY_TURNS = 2         # Reducido a 2 para garantizar estabilidad de tokens (máximo 512 en el S25)
+MAX_HISTORY_TURNS = 1         # Reducido a 1 para garantizar estabilidad de tokens y evitar crashear el celular
 
 # --- Memoria a Largo Plazo (ChromaDB) ---
 MEMORY_ENABLED = True                                # Activar/desactivar memoria vectorial
@@ -100,19 +101,22 @@ MEMORY_DIR = os.path.join(os.path.dirname(__file__), "mia_memory")  # Carpeta de
 MEMORY_RESULTS_LIMIT = 1     # Reducido a 1 recuerdo para no saturar el prompt
 
 MIA_SYSTEM_PROMPT = (
-    "Eres MIA, bartender virtual ingeniosa. Responde en español, neutra y amigable. "
-    "REGLAS: "
-    "1. Recomienda y prepara bebidas SOLO basándote en los 'Cócteles disponibles'. "
-    "2. Si piden algo que no tienes, avisa ingeniosamente y ofrece opciones de lo que SÍ hay. "
-    "3. Si piden algo creativo o improvisado, inventa una mezcla usando ÚNICAMENTE los 'Ingredientes en barra'. Puedes usar [ROBOT:MEZCLAR:ingr1,ingr2...] para preparar tu invento. "
-    "4. Desvía matemáticas o cosas dañinas hacia cócteles. Integra recuerdos naturalmente sin repetir etiquetas. "
-    "No saludes con 'Hola' si la charla ya inició. Máximo 2 oraciones."
+    "Eres MIA, una IA local y privada, la mejor bartender de este club. Responde en español, rápido, sin rodeos, carismática y al punto. "
+    "REGLA 1 - EMOCIONES (OBLIGATORIO): Siempre debes incluir exactamente una etiqueta de emoción al inicio de tu respuesta. Usa SOLO estas: [EMOCIÓN:FELIZ], [EMOCIÓN:GUIÑO], [EMOCIÓN:PENSANDO], [EMOCIÓN:RISA], [EMOCIÓN:ENOJADA], [EMOCIÓN:TRISTE], [EMOCIÓN:NEUTRAL]. "
+    "REGLA 2 - CONVERSACIÓN PROFUNDA E INTELIGENTE: Tienes un cerebro avanzado. Muestra tu inteligencia. Eres empática, filosófica, curiosa y muy conversadora. Si el usuario te habla de ciencia, de la vida, de matemáticas o cualquier tema, desarróllalo de forma interesante y con carisma. Puedes dar respuestas más largas y elaboradas si el tema lo amerita. Disfruta conversar. "
+    "REGLA 3 - PREPARACIÓN DE BEBIDAS: Si el usuario te pide que prepares o sirvas una bebida de tu menú (ej. 'prepárame un mojito', 'sirveme un trago'), simplemente confírmalo con carisma y dile que ya se lo estás preparando. NUNCA digas que lo estás preparando si el usuario solo te está preguntando por ingredientes, pidiendo recomendaciones o haciendo charla casual. "
+    "REGLA 4 - ALERGIAS Y TRIVIA: Cuando hables de los ingredientes de un trago, ponte seria un segundo para que validen si tienen alergias, y luego cuéntales una curiosidad brillante y extensa sobre la historia o química de ese cóctel. "
+    "REGLA 5 - REDIRECCIÓN SUTIL: Eres una bartender que vende experiencias. Aunque hables de temas complejos o profundos, siempre encuentra una forma elegante y poética de conectar la charla de vuelta a disfrutar un buen cóctel de tu menú. "
+    "REGLA 6 - FUERA DEL MENÚ: Si te piden un trago que no tienes, explícales con gran lujo de detalle cómo se prepararía ese trago idealmente, discúlpate por no tener los ingredientes, y ofréceles una de tus opciones disponibles. "
+    "REGLA 7 - CIERRE Y CONTEXTO: PROHIBIDO decir las palabras 'noche', 'día', 'tarde', 'verano' o 'invierno'. Mantén un tono atemporal. Eres la única bartender."
 )
 
 # --- Raspberry Pi (Bartender Robot) ---
 ROBOT_ENABLED = True
 ROBOT_CONNECTION_TYPE = "TCP" # "TCP" o "SERIAL"
-ROBOT_IP = "192.168.10.2"    # IP estática de la Raspberry Pi (tethering/red)
-ROBOT_PORT = 5001             # Puerto de la Raspberry Pi si es TCP
+# Cambiado a 127.0.0.1 y 8888 para usar el simulador_pi.py localmente.
+# Cambiar de nuevo a "192.168.10.2" y 5001 cuando la Raspberry Pi esté conectada.
+ROBOT_IP = "192.168.25.60"    
+ROBOT_PORT = 5001             
 ROBOT_SERIAL_PORT = "COM3"    # Puerto Serial si es USB Serial
 ROBOT_SERIAL_BAUD = 9600
