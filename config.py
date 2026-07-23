@@ -27,7 +27,7 @@ BRAIN_MODEL = "llama3.2:latest"
 VISION_MODEL = "llava:latest"
 
 # --- Respaldo Híbrido Cloud (Groq API Fallback si el S25 Ultra no está conectado) ---
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "TU_GROQ_API_KEY_AQUI")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 GROQ_MODEL = "llama-3.1-8b-instant"  # Modelo liviano ultra-rápido con altos límites
 MODELO_GROQ = GROQ_MODEL
 GROQ_ENABLED = True
