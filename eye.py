@@ -30,13 +30,22 @@ class Eye:
     # ------------------------------------------------------------------
 
     def _open_camera(self):
-        """(Legacy) Abre webcam local"""
+        """Abre webcam local y configura exposición para evitar flash/blancos"""
         if str(CAMERA_INDEX).isdigit():
             if self._cap is not None and self._cap.isOpened():
                 return True
             self._cap = cv2.VideoCapture(int(CAMERA_INDEX))
             if not self._cap.isOpened():
                 return False
+            
+            # Intentar desactivar auto-exposición y bajar el brillo para que no se quemen las fotos
+            try:
+                # 0.25 suele apagar el auto exposure en Windows DirectShow
+                self._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) 
+                self._cap.set(cv2.CAP_PROP_EXPOSURE, -5) # Forzar exposición más oscura
+            except:
+                pass
+                
             time.sleep(CAMERA_WARMUP)
             return True
         return False

@@ -1,43 +1,94 @@
 {
   "ingredientes_conectados": [
-    "Ron",
-    "Vodka",
-    "Limón",
-    "Menta",
-    "Azúcar",
-    "Soda",
-    "Coca-Cola",
-    "Agua Tónica",
-    "Jugo de Naranja"
+    "Refresco de toronja (Witi)",
+    "Jugo de limón",
+    "Tequila",
+    "Licor de naranja"
   ],
-  "recetario_maestro": [
+  "bebidas": [
     {
-      "nombre": "Mojito",
-      "ingredientes": ["Ron", "Limón", "Menta", "Azúcar", "Soda"]
+      "id": 1,
+      "nombre": "Paloma",
+      "tipo": "coctel",
+      "ingredientes_necesarios": [
+        {
+          "ingrediente": "Tequila",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Refresco de toronja (Witi)",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Jugo de limón",
+          "cantidad_ml": 15
+        }
+      ]
     },
     {
-      "nombre": "Cuba Libre",
-      "ingredientes": ["Ron", "Coca-Cola", "Limón"]
+      "id": 2,
+      "nombre": "Margarita con toronja",
+      "tipo": "coctel",
+      "ingredientes_necesarios": [
+        {
+          "ingrediente": "Tequila",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Licor de naranja",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Jugo de limón",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Refresco de toronja (Witi)",
+          "cantidad_ml": 20
+        }
+      ]
     },
     {
-      "nombre": "Vodka Tonic",
-      "ingredientes": ["Vodka", "Agua Tónica", "Limón"]
+      "id": 3,
+      "nombre": "Tequila Citrus",
+      "tipo": "coctel",
+      "ingredientes_necesarios": [
+        {
+          "ingrediente": "Tequila",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Jugo de limón",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Licor de naranja",
+          "cantidad_ml": 15
+        }
+      ]
     },
     {
-      "nombre": "Tequila Sunrise",
-      "ingredientes": ["Tequila", "Jugo de Naranja", "Granadina"]
-    },
-    {
-      "nombre": "Gin Tonic",
-      "ingredientes": ["Ginebra", "Agua Tónica", "Limón"]
-    },
-    {
-      "nombre": "Margarita",
-      "ingredientes": ["Tequila", "Triple Sec", "Jugo de Limón"]
-    },
-    {
-      "nombre": "Destornillador",
-      "ingredientes": ["Vodka", "Jugo de Naranja"]
+      "id": 4,
+      "nombre": "Paloma Dulce",
+      "tipo": "coctel",
+      "ingredientes_necesarios": [
+        {
+          "ingrediente": "Tequila",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Refresco de toronja (Witi)",
+          "cantidad_ml": 15
+        },
+        {
+          "ingrediente": "Licor de naranja",
+          "cantidad_ml": 20
+        },
+        {
+          "ingrediente": "Jugo de limón",
+          "cantidad_ml": 10
+        }
+      ]
     }
   ]
 }

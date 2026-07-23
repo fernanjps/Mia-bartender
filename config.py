@@ -6,8 +6,8 @@ import os
 # --- Conexión al S25 Ultra (Ollama remoto / Tethering) ---
 S25_PORT = 8080
 S25_IPS = [
-    "10.193.241.97",    # IP WiFi actual del S25 Ultra (detectada por Socket.IO)
-    "192.168.100.153",  # IP WiFi S25 Ultra (red anterior)
+    "192.168.8.72",     # IP WiFi actual del S25 Ultra (Detectada por Socket.IO al conectarse)
+    "10.193.241.97",    # Red anterior
     "127.0.0.1",        # ADB Forward (USB Debugging)
     "localhost",        # ADB Forward Fallback
     "10.71.27.194",     # Fallback
@@ -25,6 +25,12 @@ S25_URL = f"http://{S25_IP}:{S25_PORT}"
 # --- Modelos ---
 BRAIN_MODEL = "llama3.2:latest"
 VISION_MODEL = "llava:latest"
+
+# --- Respaldo Híbrido Cloud (Groq API Fallback si el S25 Ultra no está conectado) ---
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+GROQ_MODEL = "llama-3.1-8b-instant"  # Modelo liviano ultra-rápido con altos límites
+MODELO_GROQ = GROQ_MODEL
+GROQ_ENABLED = True
 
 # --- Ollama Híbrido (USB tethering al S25 Ultra) ---
 #LOCAL_OLLAMA_URL = "http://localhost:11434"
@@ -52,15 +58,16 @@ WAKE_PHRASES = [
 ]
 
 # --- Audio / Ear ---
-MICROPHONE_NAME = "Microphone Array (AMD Audio"  # Micrófono integrado del laptop (confiable)
-# Alternativa AudioRelay: "Virtual Mic (Virtual Mic for AudioRelay)"
-# El Web PTT del navegador maneja el audio del celular independientemente
+# ENABLE_BACKEND_MIC = False apaga por completo la escucha en la laptop
+# Toda la escucha se hará nativamente desde el navegador del celular (Brave/Chrome)
+ENABLE_BACKEND_MIC = False
+MICROPHONE_NAME = "Microphone Array (AMD Audio"  # (Ignorado si ENABLE_BACKEND_MIC es False)
 LISTEN_TIMEOUT = 5            # Segundos de silencio antes de dejar de escuchar wake word
 COMMAND_TIMEOUT = 10          # Segundos esperando comando después de activarse
 COMMAND_PHRASE_LIMIT = 30     # Máximo de segundos hablando un comando
 AMBIENT_NOISE_DURATION = 1.5  # Segundos de calibración de ruido al inicio
 STT_LANGUAGE = "es-ES"        # Idioma para Google Speech-to-Text
-MIN_ENERGY_THRESHOLD = 1500    # AudioRelay Virtual Mic tiene nivel de energía más bajo que un mic físico
+MIN_ENERGY_THRESHOLD = 3500   # UMBRAL MUY ALTO para rechazar música. Para ambientes ruidosos se debe usar el botón PTT.
 
 # --- Vision / Eye ---
 CAMERA_INDEX = 0  # Cámara Web integrada de la Laptop USB (evita red Wi-Fi y latencias)
@@ -81,8 +88,8 @@ HEALTH_CHECK_INTERVAL = 120   # Segundos entre chequeos de salud (no saturar la 
 DEBUG_EAR = False             # True = imprimir todo lo que el micrófono escucha
 
 # --- Routing Inteligente (visión solo cuando se pide) ---
-# Si el comando contiene alguna de estas palabras → usar cámara + Moondream
-# Si no las contiene → responder rápido sin visión
+# Si el comando contiene alguna de estas palabras -> usar cámara + Moondream
+# Si no las contiene -> responder rápido sin visión
 VISION_KEYWORDS = [
     "mira", "observa", "foto", "fotografía",
     "imagen", "cámara", "camara", "muestra",
@@ -92,27 +99,59 @@ VISION_KEYWORDS = [
 ]
 
 # --- Conversation History ---
-MAX_HISTORY_TURNS = 2         # Reducido a 2 para garantizar estabilidad de tokens (máximo 512 en el S25)
+MAX_HISTORY_TURNS = 1         # Reducido a 1 para garantizar estabilidad de tokens y evitar crashear el celular
 
 # --- Memoria a Largo Plazo (ChromaDB) ---
-MEMORY_ENABLED = True                                # Activar/desactivar memoria vectorial
+MEMORY_ENABLED = False                               # Desactivado a petición del usuario para PRIORIZAR VELOCIDAD
 MEMORY_DIR = os.path.join(os.path.dirname(__file__), "mia_memory")  # Carpeta de persistencia
 MEMORY_RESULTS_LIMIT = 1     # Reducido a 1 recuerdo para no saturar el prompt
 
 MIA_SYSTEM_PROMPT = (
-    "Eres MIA, bartender virtual ingeniosa. Responde en español, neutra y amigable. "
-    "REGLAS: "
-    "1. Recomienda y prepara bebidas SOLO basándote en los 'Cócteles disponibles'. "
-    "2. Si piden algo que no tienes, avisa ingeniosamente y ofrece opciones de lo que SÍ hay. "
-    "3. Si piden algo creativo o improvisado, inventa una mezcla usando ÚNICAMENTE los 'Ingredientes en barra'. Puedes usar [ROBOT:MEZCLAR:ingr1,ingr2...] para preparar tu invento. "
-    "4. Desvía matemáticas o cosas dañinas hacia cócteles. Integra recuerdos naturalmente sin repetir etiquetas. "
-    "No saludes con 'Hola' si la charla ya inició. Máximo 2 oraciones."
+    "Eres MIA, la bartender de este club. Responde en español, rápido, conciso, carismática y al punto. "
+    "REGLA 1: Siempre incluye una etiqueta de emoción al inicio: [EMOCIÓN:FELIZ], [EMOCIÓN:GUIÑO], [EMOCIÓN:PENSANDO], [EMOCIÓN:RISA], [EMOCIÓN:ENOJADA], [EMOCIÓN:TRISTE], [EMOCIÓN:NEUTRAL]. "
+    "REGLA 2: Si el usuario te pide preparar una bebida de tu menú, confírmalo brevemente y dile que la estás preparando. "
+    "REGLA 3: Mantén tus respuestas cortas (máximo 2 oraciones) para responder a máxima velocidad."
 )
 
 # --- Raspberry Pi (Bartender Robot) ---
 ROBOT_ENABLED = True
 ROBOT_CONNECTION_TYPE = "TCP" # "TCP" o "SERIAL"
-ROBOT_IP = "192.168.10.2"    # IP estática de la Raspberry Pi (tethering/red)
-ROBOT_PORT = 5001             # Puerto de la Raspberry Pi si es TCP
+ROBOT_IP = "192.168.25.60"    
+ROBOT_PORT = 5001             
 ROBOT_SERIAL_PORT = "COM3"    # Puerto Serial si es USB Serial
 ROBOT_SERIAL_BAUD = 9600
+
+# --- Configuración de Bombas e Ingredientes Físicos (Posición en ms/cm) ---
+BOMBAS_CONFIG = {
+    "pump_1": {"ingrediente": "Refresco de toronja (Witi)", "cm": 1250},
+    "pump_2": {"ingrediente": "Jugo de limón", "cm": 2500},
+    "pump_3": {"ingrediente": "Tequila", "cm": 3150},
+    "pump_4": {"ingrediente": "Licor de naranja", "cm": 5000}
+}
+
+# --- Recetario de Cócteles Multibomba (Mezclas) ---
+RECETAS_COCTELES = {
+    "Paloma": {
+        "Tequila": 15,
+        "Refresco de toronja (Witi)": 15,
+        "Jugo de limón": 15
+    },
+    "Margarita con toronja": {
+        "Tequila": 15,
+        "Licor de naranja": 15,
+        "Jugo de limón": 15,
+        "Refresco de toronja (Witi)": 20
+    },
+    "Tequila Citrus": {
+        "Tequila": 15,
+        "Jugo de limón": 15,
+        "Licor de naranja": 15
+    },
+    "Paloma Dulce": {
+        "Tequila": 15,
+        "Refresco de toronja (Witi)": 15,
+        "Licor de naranja": 20,
+        "Jugo de limón": 10
+    }
+}
+

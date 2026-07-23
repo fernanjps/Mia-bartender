@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO
 import threading
 import time
 import sys
 import io
+import re
 from assistant import VoiceAssistant
 
 # Fix consola Windows UTF-8 (Método seguro para Python 3.7+)
@@ -47,6 +48,58 @@ def start_mia_backend():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/api/command', methods=['POST'])
+def handle_api_command():
+    """Recibe comandos de texto directamente desde la App Android Nativa (C:/MIA)"""
+    if mia:
+        data = request.get_json()
+        
+        # --- APRENDIZAJE DINÁMICO DE IP ---
+        # Si la IP del celular cambia (ej. al cambiar de WiFi a datos móviles),
+        # la aprendemos automáticamente cuando el celular nos manda el primer comando.
+        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', ''))
+        if client_ip and not client_ip.startswith('127.') and not client_ip.startswith('::1'):
+            if hasattr(mia, 'brain') and mia.brain:
+                new_chat_url = f"http://{client_ip}:8080/chat"
+                new_vision_url = f"http://{client_ip}:8080/vision"
+                if mia.brain.active_url != new_chat_url:
+                    mia.brain.active_url = new_chat_url
+                    if hasattr(mia, 'eye') and mia.eye:
+                        mia.eye.active_url = new_vision_url
+                    print(f"📡 ¡IP del Celular actualizada automáticamente a {client_ip}!")
+        # ----------------------------------
+
+        if data and "text" in data:
+            text = data["text"].strip()
+            if text:
+                print(f"📱 Comando Nativo Android recibido: {text}")
+                
+                # LIMPIEZA: Remover muletillas o wake words del inicio para no ensuciar el prompt
+                text = re.sub(r'^(hey mia|ey mia|m mia|oye mia|hola mia|mia)\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
+                
+                # VALIDACIÓN DE ORDEN TRAS WAKE WORD:
+                # Si el usuario solo dijo "Hey MIA" y no dio ninguna orden:
+                if not text:
+                    print("⚠️ Wake word sin orden recibido. Respondiendo advertencia directa sin invocar LLM...")
+                    # Opción: Responder de inmediato sin demoras de LLM
+                    if hasattr(mia, 'voice') and mia.voice:
+                        mia.voice.clear_queue()
+                    socketio.emit('stop_audio')
+                    mia.set_state("speaking", data={"text": "Debes decirme una orden de una vez."})
+                    mia.voice.speak_async("Debes decirme una orden de una vez.")
+                    return jsonify({"status": "warning", "message": "No command given"}), 200
+                
+                # INTERRUPCIÓN: Si MIA estaba hablando, la silenciamos y abortamos audio pendiente
+                if hasattr(mia, 'voice') and mia.voice:
+                    mia.voice.clear_queue()
+                socketio.emit('stop_audio')
+                
+                queue = mia.ear.audio_queue if mia.ear else mia.audio_queue
+                queue.put(text)
+                mia.set_state("listening")
+                return jsonify({"status": "success", "message": "Command received"}), 200
+    return jsonify({"status": "error", "message": "Invalid request or MIA offline"}), 400
 
 @socketio.on('audio_finished')
 def handle_audio_finished():
@@ -97,11 +150,23 @@ def handle_connect():
 @socketio.on('user_command')
 def handle_text_command(data):
     """Comandos enviados desde el PTT de la página web nativa"""
-    if mia and mia.ear:
+    if mia:
         text = data.get("text", "").strip()
         if text:
-            print(f"🌐 Recibido PTT Web: {text}")
-            mia.ear.audio_queue.put(text)
+            print(f"🎧 Recibido PTT Web: {text}")
+            
+            # LIMPIEZA: Remover muletillas o wake words del inicio para no ensuciar el prompt
+            import re
+            text = re.sub(r'^(hey mia|ey mia|m mia|oye mia|hola mia|mia)\b\s*,?\s*', '', text, flags=re.IGNORECASE)
+            text = text.strip() or "Hola" # Si solo dijo "MIA", lo cambiamos a "Hola"
+            
+            # INTERRUPCIÓN: Si MIA estaba hablando, la silenciamos y abortamos audio pendiente
+            if hasattr(mia, 'voice') and mia.voice:
+                mia.voice.clear_queue()
+            socketio.emit('stop_audio')
+            
+            queue = mia.ear.audio_queue if mia.ear else mia.audio_queue
+            queue.put(text)
             mia.set_state("listening")
 
 @socketio.on('request_vision')

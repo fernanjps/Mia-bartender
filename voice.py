@@ -58,6 +58,12 @@ class Voice:
     def speak_async(self, text):
         """Encola el texto para ser procesado sin bloquear"""
         self._speech_queue.put(text)
+        
+    def clear_queue(self):
+        """Vacía la cola de voz para interrupciones"""
+        with self._speech_queue.mutex:
+            self._speech_queue.queue.clear()
+
 
     def wait_until_done(self):
         """Bloquea hasta que todos los elementos en la cola hayan sido procesados por el worker"""

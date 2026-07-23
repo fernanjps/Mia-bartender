@@ -28,10 +28,13 @@ class Ear:
         self.recognizer = sr.Recognizer()
         self.socketio = socketio
         
-        # Umbral de silencio rápido: a los 0.35 segundos de silencio se detiene la escucha
-        self.recognizer.pause_threshold = 0.35
-        # Desactivar ajuste dinámico: AudioRelay puede tener audio muy bajo y el ajuste dinámico lo silencia
+        # Umbral de silencio relajado: a los 0.6 segundos de silencio se detiene la escucha
+        # Esto evita que corte a las personas a mitad de frase.
+        self.recognizer.pause_threshold = 0.6
+        # Desactivamos el ajuste dinámico para evitar que la música fuerte 
+        # suba el umbral excesivamente y vuelva sorda a MIA.
         self.recognizer.dynamic_energy_threshold = False
+        self.recognizer.energy_threshold = MIN_ENERGY_THRESHOLD
         
         # Buscar el índice del dispositivo para "AudioRelay Virtual Mic" (o cualquier otro provisto)
         device_index = None
@@ -95,9 +98,9 @@ class Ear:
                 # Asegurar mínimo
                 if self.recognizer.energy_threshold < MIN_ENERGY_THRESHOLD:
                     self.recognizer.energy_threshold = MIN_ENERGY_THRESHOLD
-                # Cap máximo para no quedarse sordo
-                if self.recognizer.energy_threshold > 800:
-                    self.recognizer.energy_threshold = 800
+                # Cap máximo para no quedarse sordo (aumentado para entornos con mucho ruido)
+                if self.recognizer.energy_threshold > 4000:
+                    self.recognizer.energy_threshold = 4000
                 print(f"🎤 Micrófono calibrado (umbral: {self.recognizer.energy_threshold:.0f})")
             except Exception as e:
                 print(f"⚠️ Error calibrando micrófono: {e}")
@@ -130,6 +133,7 @@ class Ear:
 
     def _transcribe(self, audio):
         """Convierte audio a texto usando Google STT"""
+        import time
         try:
             text = self.recognizer.recognize_google(audio, language=STT_LANGUAGE)
             return text.strip()
@@ -137,7 +141,8 @@ class Ear:
             # No se entendió el audio — normal en escucha pasiva
             return None
         except sr.RequestError as e:
-            print(f"❌ Error en Google STT: {e}")
+            print(f"❌ Error en Google STT (Red Inaccesible): {e}")
+            time.sleep(2) # Evitar spam masivo si no hay internet
             return None
 
     # ------------------------------------------------------------------
@@ -354,7 +359,8 @@ class Ear:
                 self.is_activated = False
 
                 if command_audio is None:
-                    print("⏹️ No escuché nada, volviendo a modo pasivo")
+                    print("⏹️ No escuché ninguna orden, alertando al usuario...")
+                    self.audio_queue.put("Debes decirme una orden de una vez.")
                     continue
 
                 command_text = self._transcribe(command_audio)
@@ -362,7 +368,8 @@ class Ear:
                     print(f"👤 Comando: {command_text}")
                     self.audio_queue.put(command_text)
                 else:
-                    print("⏹️ No entendí, volviendo a modo pasivo")
+                    print("⏹️ No se entendió la orden, avisando al usuario...")
+                    self.audio_queue.put("Debes decirme una orden de una vez.")
 
             except Exception as e:
                 print(f"❌ Error en escucha continua: {e}")

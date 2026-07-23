@@ -20,12 +20,13 @@ class Brain:
     def __init__(self):
         self.model = BRAIN_MODEL
 
-        # Redirección directa por USB (Cero latencia y sin depender de IPs de red)
-        self.active_ip = "127.0.0.1"
-        self.active_url = "http://localhost:8080/chat"
+        # Usar la URL que viene desde config.py (permite usar IP de WiFi si se desconecta el USB)
+        from config import BRAIN_URL
+        self.active_url = f"{BRAIN_URL}/chat"
 
         # Historial de sesión actual (corto plazo)
         self._history = []
+        self._inventory_cache = None
 
         # Memoria a largo plazo (ChromaDB)
         self.memory = None
@@ -84,38 +85,69 @@ class Brain:
     # Generación de respuestas
     # ------------------------------------------------------------------
 
-    def _generate(self, prompt, max_retries=2):
-        """MÉTODO 1: MODO TEXTO PURO (Envía el prompt en el body de forma segura)"""
+    def _generate(self, prompt, max_retries=1):
+        """MÉTODO HÍBRIDO: Intenta S25 Ultra (Ollama local). Si no está disponible, cae a Groq Cloud API."""
         import requests
         import time
-        for attempt in range(max_retries + 1):
-            try:
-                if attempt > 0:
-                    print(f"🔄 Reintentando Texto ({attempt}/{max_retries})...")
-                    time.sleep(1.5)
-                
-                body_data = prompt.encode('utf-8')
-                headers = {
-                    "Content-Type": "text/plain; charset=utf-8",
-                    "Content-Length": str(len(body_data))
-                }
-                
-                response = requests.post(
-                    self.active_url,
-                    data=body_data,     # Texto puro en el body, perfecto para los cócteles
-                    headers=headers,
-                    timeout=30.0        # Reducido a 30s para mayor responsividad
-                )
-                response.raise_for_status() # Lanza error para 4xx/5xx
-                
+        from config import GROQ_API_KEY, GROQ_MODEL, GROQ_ENABLED
+
+        # 1. INTENTO LOCAL: Probar S25 Ultra (Ktor / Ollama local en celular)
+        try:
+            body_data = prompt.encode('utf-8')
+            headers = {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Length": str(len(body_data))
+            }
+            response = requests.post(
+                self.active_url,
+                data=body_data,
+                headers=headers,
+                timeout=3.0  # Timeout corto para no hacer esperar si el celular no está conectado
+            )
+            if response.status_code == 200 and response.text.strip():
+                print("🧠 [CEREBRO LOCAL] Respuesta recibida desde S25 Ultra")
                 def chunk_generator():
                     yield response.text
                 return chunk_generator()
-            except requests.exceptions.RequestException as e:
-                print(f"❌ Error Texto en S25 Ultra: {e}")
-                if attempt >= max_retries: break
-        
-        def error_generator(): yield "Lo siento, estoy teniendo problemas para conectarme con mi cerebro."
+        except Exception as e:
+            print(f"⚠️ S25 Ultra no responde ({e}). Activando Respaldo Híbrido Groq Cloud API...")
+
+        # 2. INTENTO CLOUD: Respaldo Híbrido con Groq API (Ultra-rápido)
+        if GROQ_ENABLED and GROQ_API_KEY:
+            try:
+                print(f"⚡ [GROQ CLOUD] Generando respuesta con {GROQ_MODEL} via Groq API...")
+                groq_url = "https://api.groq.com/openai/v1/chat/completions"
+                groq_headers = {
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                groq_payload = {
+                    "model": GROQ_MODEL,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 512
+                }
+                groq_response = requests.post(
+                    groq_url,
+                    json=groq_payload,
+                    headers=groq_headers,
+                    timeout=10.0
+                )
+                if groq_response.status_code == 200:
+                    data = groq_response.json()
+                    ans = data['choices'][0]['message']['content']
+                    print("⚡ [GROQ CLOUD] ✅ Respuesta recibida con éxito desde Groq")
+                    def chunk_generator():
+                        yield ans
+                    return chunk_generator()
+                else:
+                    print(f"❌ Error en Groq API ({groq_response.status_code}): {groq_response.text}")
+            except Exception as e:
+                print(f"❌ Error conectando a Groq API Cloud: {e}")
+
+        def error_generator(): yield "Lo siento, no pude conectarme con mi celular ni con el servidor de respaldo."
         return error_generator()
 
     def _generate_vision(self, prompt, max_retries=2):
@@ -137,34 +169,53 @@ Ve directo al grano (ej: "Veo que tienes un..."). Máximo 2 oraciones."""
         return response
 
     def _load_inventory(self):
+        """Devuelve las bebidas leyendo el inventario.json (con caché en memoria para máxima velocidad)."""
         import json
-        inv_path = os.path.join(os.path.dirname(__file__), "inventario.json")
+        import os
+        from config import ROBOT_ENABLED
+        
+        if hasattr(self, "_inventory_cache") and self._inventory_cache is not None:
+            return self._inventory_cache
+            
+        if not ROBOT_ENABLED:
+            self._inventory_cache = {
+                "ingredientes": [],
+                "disponibles": [{"nombre": "Agua (Simulado)"}, {"nombre": "Jugo (Simulado)"}],
+                "no_disponibles": [],
+                "todas": []
+            }
+            return self._inventory_cache
+            
         try:
+            inv_path = os.path.join(os.path.dirname(__file__), "inventario.json")
             with open(inv_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            
+            recetario = data.get("bebidas", [])
+            disponibles = []
+            for item in recetario:
+                ingredientes_list = item.get("ingredientes_necesarios", [])
+                ing_str = ", ".join([ing.get("ingrediente", "") for ing in ingredientes_list])
+                disponibles.append({
+                    "nombre": item.get("nombre", ""),
+                    "descripcion": f"Lleva {ing_str}"
+                })
                 
-            connected = set([self._normalize(i) for i in data.get("ingredientes_conectados", [])])
-            master_recipes = data.get("recetario_maestro", [])
-            
-            available_drinks = []
-            unavailable_drinks = []
-            
-            for drink in master_recipes:
-                reqs = [self._normalize(ing) for ing in drink.get("ingredientes", [])]
-                if all(req in connected for req in reqs):
-                    available_drinks.append(drink)
-                else:
-                    unavailable_drinks.append(drink)
-                    
-            return {
+            self._inventory_cache = {
                 "ingredientes": data.get("ingredientes_conectados", []),
-                "disponibles": available_drinks,
-                "no_disponibles": unavailable_drinks,
-                "todas": master_recipes
+                "disponibles": disponibles,
+                "no_disponibles": [],
+                "todas": disponibles
             }
+            return self._inventory_cache
         except Exception as e:
-            print(f"⚠️ Error cargando inventario: {e}")
-        return None
+            print(f"⚠️ Error cargando inventario.json: {e}")
+            return {
+                "ingredientes": [],
+                "disponibles": [],
+                "no_disponibles": [],
+                "todas": []
+            }
 
     def _normalize(self, text):
         text = unicodedata.normalize("NFD", text or "")
@@ -285,8 +336,8 @@ Ve directo al grano (ej: "Veo que tienes un..."). Máximo 2 oraciones."""
         
         disponibles = []
         for drink in inv_data.get("disponibles", []):
-            ing_list = ", ".join(drink.get("ingredientes", []))
-            disponibles.append(f"{drink['nombre']} ({ing_list})")
+            desc = drink.get("descripcion", "")
+            disponibles.append(f"{drink['nombre']} ({desc})")
             
         disponibles_str = ", ".join(disponibles) if disponibles else "Ninguno"
         
@@ -360,13 +411,12 @@ Ve directo al grano (ej: "Veo que tienes un..."). Máximo 2 oraciones."""
             if memory_context:
                 print("🧬 Recuerdos relevantes encontrados y cargados en contexto")
 
-        # 6. Formatear el inventario de bebidas solo si se habla de tragos/cocteles
+        # 6. Formatear el inventario de bebidas SIEMPRE, para que MIA sepa exactamente qué tiene
+        # y no alucine cuando le piden tragos fuera del menú.
         menu_context = ""
-        drink_keywords = ["bebida", "beber", "trago", "cóctel", "coctel", "catálogo", "catalogo", "carta", "menú", "menu", "recomienda", "recomiendas", "sirve", "sirvas", "prepara", "mojito", "cuba", "vodka", "tequila", "gin", "margarita", "destornillador"]
-        if any(kw in normalized_input for kw in drink_keywords):
-            if inv_data:
-                menu_context = self._format_inventory_context(inv_data)
-                print("🍹 Inyectando inventario y bebidas disponibles en el prompt.")
+        if inv_data:
+            menu_context = self._format_inventory_context(inv_data)
+            print("🍹 Inyectando inventario y bebidas disponibles en el prompt.")
 
         history_text = self._format_history()
 
