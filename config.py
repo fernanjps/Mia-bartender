@@ -119,17 +119,17 @@ MIA_SYSTEM_PROMPT = (
 # --- Raspberry Pi (Bartender Robot) ---
 ROBOT_ENABLED = True
 ROBOT_CONNECTION_TYPE = "TCP" # "TCP" o "SERIAL"
-ROBOT_IP = "192.168.10.2"    # IP estática de la Raspberry Pi (tethering/red)
+ROBOT_IP = "10.54.149.60"    # IP estática de la Raspberry Pi (tethering/red)
 ROBOT_PORT = 5001             # Puerto de la Raspberry Pi si es TCP
 ROBOT_SERIAL_PORT = "COM3"    # Puerto Serial si es USB Serial
 ROBOT_SERIAL_BAUD = 9600
 
 # --- Configuración de Bombas e Ingredientes Físicos (Posición en ms/cm) ---
 BOMBAS_CONFIG = {
-    "pump_1": {"ingrediente": "Refresco de toronja (Witi)", "cm": 1250},
-    "pump_2": {"ingrediente": "Jugo de limón", "cm": 2500},
-    "pump_3": {"ingrediente": "Tequila", "cm": 3150},
-    "pump_4": {"ingrediente": "Licor de naranja", "cm": 5000}
+    "pump_1": {"ingrediente": "Refresco de toronja (Witi)", "cm": 9},
+    "pump_2": {"ingrediente": "Jugo de limón", "cm": 520},
+    "pump_3": {"ingrediente": "Tequila", "cm": 1300},
+    "pump_4": {"ingrediente": "Licor de naranja", "cm": 2000}
 }
 
 # --- Recetario de Cócteles Multibomba (Mezclas) ---

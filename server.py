@@ -76,25 +76,18 @@ def handle_api_command():
                 print(f"📱 Comando Nativo Android recibido: {text}")
                 
                 # LIMPIEZA: Remover muletillas o wake words del inicio para no ensuciar el prompt
-<<<<<<< HEAD
                 text = re.sub(r'^(hey mia|ey mia|m mia|oye mia|hola mia|mia)\b\s*,?\s*', '', text, flags=re.IGNORECASE).strip()
                 
                 # VALIDACIÓN DE ORDEN TRAS WAKE WORD:
                 # Si el usuario solo dijo "Hey MIA" y no dio ninguna orden:
                 if not text:
                     print("⚠️ Wake word sin orden recibido. Respondiendo advertencia directa sin invocar LLM...")
-                    # Opción: Responder de inmediato sin demoras de LLM
                     if hasattr(mia, 'voice') and mia.voice:
                         mia.voice.clear_queue()
                     socketio.emit('stop_audio')
                     mia.set_state("speaking", data={"text": "Debes decirme una orden de una vez."})
                     mia.voice.speak_async("Debes decirme una orden de una vez.")
                     return jsonify({"status": "warning", "message": "No command given"}), 200
-=======
-                import re
-                text = re.sub(r'^(hey mia|ey mia|m mia|oye mia|hola mia|mia)\b\s*,?\s*', '', text, flags=re.IGNORECASE)
-                text = text.strip() or "Hola" # Si solo dijo "MIA", lo cambiamos a "Hola"
->>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
                 
                 # INTERRUPCIÓN: Si MIA estaba hablando, la silenciamos y abortamos audio pendiente
                 if hasattr(mia, 'voice') and mia.voice:

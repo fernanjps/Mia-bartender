@@ -1,7 +1,26 @@
 import time
 import threading
 from flask import Flask, request, jsonify
-import RPi.GPIO as GPIO
+try:
+    import RPi.GPIO as GPIO
+except (ImportError, RuntimeError):
+    # Mock para pruebas en entorno Windows o donde RPi.GPIO no esté presente
+    class MockGPIO:
+        BCM = "BCM"
+        OUT = "OUT"
+        HIGH = 1
+        LOW = 0
+        def setmode(self, mode): pass
+        def setwarnings(self, flag): pass
+        def setup(self, pin, mode): pass
+        def output(self, pin, state): pass
+        def cleanup(self): pass
+        def PWM(self, pin, freq):
+            class MockPWM:
+                def start(self, dc): pass
+                def ChangeDutyCycle(self, dc): pass
+            return MockPWM()
+    GPIO = MockGPIO()
 
 app = Flask(__name__)
 
@@ -9,13 +28,11 @@ app = Flask(__name__)
 # CONFIGURACIÓN DE PINES GPIO
 # ==========================================
 # Motor DC (L298N)
-# Conectados según lo indicado por el usuario
 PIN_IN1 = 16
 PIN_IN2 = 20
 PIN_ENA = 21
 
 # Relés de las Bombas (Ajusta según tu conexión)
-# Usa los pines reales a los que conectaste cada relé
 PUMPS = {
     "pump_1": 19,
     "pump_2": 6,
@@ -24,7 +41,7 @@ PUMPS = {
 }
 
 # Configuración del motor DC
-VELOCIDAD = 80        # 0-100 (duty cycle en %)
+VELOCIDAD = 100       # 0-100 (100% para máximo torque y velocidad)
 PWM_FREQ = 1000       # Frecuencia del PWM en Hz
 SEGUNDOS_POR_CM = 0.001 # Multiplicador para convertir los Milisegundos a Segundos
 pwm_motor = None
@@ -53,12 +70,14 @@ def setup_gpio():
     # Bombas
     for pin in PUMPS.values():
         GPIO.setup(pin, GPIO.OUT)
-        GPIO.output(pin, GPIO.HIGH) # Asumiendo relés activos en LOW (ajustar si es necesario)
+        GPIO.output(pin, GPIO.HIGH) # Asumiendo relés activos en LOW
 
 def detener_motor():
     GPIO.output(PIN_IN1, GPIO.LOW)
     GPIO.output(PIN_IN2, GPIO.LOW)
-    pwm_motor.ChangeDutyCycle(0)
+    GPIO.output(PIN_ENA, GPIO.LOW)
+    if pwm_motor:
+        pwm_motor.ChangeDutyCycle(0)
 
 def mover_motor(target_cm):
     global current_position
@@ -70,18 +89,20 @@ def mover_motor(target_cm):
     
     print(f"⚙️ [MOTOR] Moviendo a {target_cm}cm (Tiempo estimado: {tiempo_movimiento:.2f}s)...")
     
-    # Dirección
+    # Dirección (Invertido físicamente según la montura del riel)
     if distance > 0:
-        # Adelante (invertido físicamente)
+        # Adelante (Hacia las bombas 1, 2, 3, 4)
         GPIO.output(PIN_IN1, GPIO.LOW)
         GPIO.output(PIN_IN2, GPIO.HIGH)
     else:
-        # Atrás (invertido físicamente)
+        # Atrás (Regreso al origen 0)
         GPIO.output(PIN_IN1, GPIO.HIGH)
         GPIO.output(PIN_IN2, GPIO.LOW)
         
-    # Arrancar motor usando PWM
-    pwm_motor.ChangeDutyCycle(VELOCIDAD)
+    # Habilitar motor (digital HIGH y PWM 100% para asegurar arranque)
+    GPIO.output(PIN_ENA, GPIO.HIGH)
+    if pwm_motor:
+        pwm_motor.ChangeDutyCycle(VELOCIDAD)
     
     # Esperar el tiempo calculado
     time.sleep(tiempo_movimiento)
@@ -92,7 +113,6 @@ def mover_motor(target_cm):
     current_position = target_cm
     print(f"⚙️ [MOTOR] Llegó a la posición calculada para {target_cm}cm.")
 
-<<<<<<< HEAD
 def servir_bebida_hilo_pasos(steps):
     global is_busy
     try:
@@ -129,8 +149,6 @@ def servir_bebida_hilo_pasos(steps):
         is_busy = False
         print("✅ [FIN] Máquina lista para la siguiente bebida.")
 
-=======
->>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
 def servir_bebida_hilo(pump_key, amount_ml, target_cm):
     global is_busy
     try:
@@ -142,11 +160,6 @@ def servir_bebida_hilo(pump_key, amount_ml, target_cm):
         pump_pin = PUMPS.get(pump_key)
         if pump_pin:
             print(f"💧 [BOMBA] Encendiendo {pump_key} para servir {amount_ml}mL...")
-            # Cálculo de tiempo (Bombas peristálticas pequeñas: ~1.5mL por segundo)
-<<<<<<< HEAD
-=======
-            # Para servir 150mL, la bomba estará encendida ~100 segundos
->>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
             tiempo_servido = amount_ml / 1.5 
             
             GPIO.output(pump_pin, GPIO.LOW) # RELÉ ON
@@ -180,7 +193,6 @@ def prepare_drink():
         return jsonify({"error": "La máquina está ocupada preparando otra bebida"}), 409
         
     data = request.get_json()
-<<<<<<< HEAD
     steps = data.get('steps')
     
     # MODO 1: Preparar mezcla secuencial multibomba
@@ -194,18 +206,12 @@ def prepare_drink():
         }), 200
 
     # MODO 2: Servir una sola bomba (Compatibilidad anterior)
-=======
->>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
     pump_key = data.get('pump')
     amount_ml = data.get('amount_ml', 100)
     target_cm = data.get('cm', 0)
     
     if not pump_key or pump_key not in PUMPS:
-<<<<<<< HEAD
         return jsonify({"error": "Bomba o pasos no válidos"}), 400
-=======
-        return jsonify({"error": "Bomba no válida"}), 400
->>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
         
     # Bloquear la máquina
     is_busy = True
@@ -222,10 +228,16 @@ def prepare_drink():
 
 if __name__ == '__main__':
     print("🍹 Iniciando Servidor Bartender en Raspberry Pi (MODO HILOS) 🍹")
-    setup_gpio()
+    try:
+        setup_gpio()
+    except Exception as e:
+        print(f"⚠️ Nota de GPIO: {e} (Si estás en Windows/Desarrollo, RPi.GPIO se omitirá)")
     try:
         app.run(host='0.0.0.0', port=5001)
     except KeyboardInterrupt:
         print("Apagando servidor...")
     finally:
-        GPIO.cleanup()
+        try:
+            GPIO.cleanup()
+        except:
+            pass
