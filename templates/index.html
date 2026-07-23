@@ -240,6 +240,7 @@
     <!-- Drink Menu Overlay -->
     <div id="drink-menu">
         <div class="menu-title">Drinks Menu</div>
+<<<<<<< HEAD
         <div class="menu-item" id="menu-paloma">
             <span>Paloma</span> <span class="pump">[1]</span>
         </div>
@@ -251,6 +252,19 @@
         </div>
         <div class="menu-item" id="menu-paloma-dulce">
             <span>Paloma Dulce</span> <span class="pump">[4]</span>
+=======
+        <div class="menu-item" id="menu-tormenta">
+            <span>Tormenta Púrpura</span> <span class="pump">[1]</span>
+        </div>
+        <div class="menu-item" id="menu-brisa">
+            <span>Brisa Marina</span> <span class="pump">[2]</span>
+        </div>
+        <div class="menu-item" id="menu-atardecer">
+            <span>Atardecer</span> <span class="pump">[3]</span>
+        </div>
+        <div class="menu-item" id="menu-bandera">
+            <span>La Bandera</span> <span class="pump">[4]</span>
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
         </div>
     </div>
     
@@ -590,10 +604,17 @@
                     // Resaltar en el menú
                     document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
                     let drinkClass = text.toLowerCase().replace(" ", "");
+<<<<<<< HEAD
                     if (drinkClass.includes("paloma") && !drinkClass.includes("dulce")) document.getElementById("menu-paloma")?.classList.add("active");
                     if (drinkClass.includes("margarita")) document.getElementById("menu-margarita")?.classList.add("active");
                     if (drinkClass.includes("citrus")) document.getElementById("menu-citrus")?.classList.add("active");
                     if (drinkClass.includes("dulce")) document.getElementById("menu-paloma-dulce")?.classList.add("active");
+=======
+                    if (drinkClass.includes("tormenta") || drinkClass.includes("purpura") || drinkClass.includes("púrpura")) document.getElementById("menu-tormenta").classList.add("active");
+                    if (drinkClass.includes("brisa") || drinkClass.includes("marina")) document.getElementById("menu-brisa").classList.add("active");
+                    if (drinkClass.includes("atardecer")) document.getElementById("menu-atardecer").classList.add("active");
+                    if (drinkClass.includes("bandera")) document.getElementById("menu-bandera").classList.add("active");
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
                     break;
 
                 case 'listening':

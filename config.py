@@ -107,17 +107,20 @@ MEMORY_DIR = os.path.join(os.path.dirname(__file__), "mia_memory")  # Carpeta de
 MEMORY_RESULTS_LIMIT = 1     # Reducido a 1 recuerdo para no saturar el prompt
 
 MIA_SYSTEM_PROMPT = (
-    "Eres MIA, la bartender de este club. Responde en español, rápido, conciso, carismática y al punto. "
-    "REGLA 1: Siempre incluye una etiqueta de emoción al inicio: [EMOCIÓN:FELIZ], [EMOCIÓN:GUIÑO], [EMOCIÓN:PENSANDO], [EMOCIÓN:RISA], [EMOCIÓN:ENOJADA], [EMOCIÓN:TRISTE], [EMOCIÓN:NEUTRAL]. "
-    "REGLA 2: Si el usuario te pide preparar una bebida de tu menú, confírmalo brevemente y dile que la estás preparando. "
-    "REGLA 3: Mantén tus respuestas cortas (máximo 2 oraciones) para responder a máxima velocidad."
+    "Eres MIA, bartender virtual ingeniosa. Responde en español, neutra y amigable. "
+    "REGLAS: "
+    "1. Recomienda y prepara bebidas SOLO basándote en los 'Cócteles disponibles'. "
+    "2. Si piden algo que no tienes, avisa ingeniosamente y ofrece opciones de lo que SÍ hay. "
+    "3. Si piden algo creativo o improvisado, inventa una mezcla usando ÚNICAMENTE los 'Ingredientes en barra'. Puedes usar [ROBOT:MEZCLAR:ingr1,ingr2...] para preparar tu invento. "
+    "4. Desvía matemáticas o cosas dañinas hacia cócteles. Integra recuerdos naturalmente sin repetir etiquetas. "
+    "No saludes con 'Hola' si la charla ya inició. Máximo 2 oraciones."
 )
 
 # --- Raspberry Pi (Bartender Robot) ---
 ROBOT_ENABLED = True
 ROBOT_CONNECTION_TYPE = "TCP" # "TCP" o "SERIAL"
-ROBOT_IP = "192.168.25.60"    
-ROBOT_PORT = 5001             
+ROBOT_IP = "192.168.10.2"    # IP estática de la Raspberry Pi (tethering/red)
+ROBOT_PORT = 5001             # Puerto de la Raspberry Pi si es TCP
 ROBOT_SERIAL_PORT = "COM3"    # Puerto Serial si es USB Serial
 ROBOT_SERIAL_BAUD = 9600
 

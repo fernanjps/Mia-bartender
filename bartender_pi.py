@@ -92,6 +92,7 @@ def mover_motor(target_cm):
     current_position = target_cm
     print(f"⚙️ [MOTOR] Llegó a la posición calculada para {target_cm}cm.")
 
+<<<<<<< HEAD
 def servir_bebida_hilo_pasos(steps):
     global is_busy
     try:
@@ -128,6 +129,8 @@ def servir_bebida_hilo_pasos(steps):
         is_busy = False
         print("✅ [FIN] Máquina lista para la siguiente bebida.")
 
+=======
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
 def servir_bebida_hilo(pump_key, amount_ml, target_cm):
     global is_busy
     try:
@@ -140,6 +143,10 @@ def servir_bebida_hilo(pump_key, amount_ml, target_cm):
         if pump_pin:
             print(f"💧 [BOMBA] Encendiendo {pump_key} para servir {amount_ml}mL...")
             # Cálculo de tiempo (Bombas peristálticas pequeñas: ~1.5mL por segundo)
+<<<<<<< HEAD
+=======
+            # Para servir 150mL, la bomba estará encendida ~100 segundos
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
             tiempo_servido = amount_ml / 1.5 
             
             GPIO.output(pump_pin, GPIO.LOW) # RELÉ ON
@@ -173,6 +180,7 @@ def prepare_drink():
         return jsonify({"error": "La máquina está ocupada preparando otra bebida"}), 409
         
     data = request.get_json()
+<<<<<<< HEAD
     steps = data.get('steps')
     
     # MODO 1: Preparar mezcla secuencial multibomba
@@ -186,12 +194,18 @@ def prepare_drink():
         }), 200
 
     # MODO 2: Servir una sola bomba (Compatibilidad anterior)
+=======
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
     pump_key = data.get('pump')
     amount_ml = data.get('amount_ml', 100)
     target_cm = data.get('cm', 0)
     
     if not pump_key or pump_key not in PUMPS:
+<<<<<<< HEAD
         return jsonify({"error": "Bomba o pasos no válidos"}), 400
+=======
+        return jsonify({"error": "Bomba no válida"}), 400
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
         
     # Bloquear la máquina
     is_busy = True

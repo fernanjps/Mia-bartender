@@ -89,6 +89,7 @@ class Brain:
         """MÉTODO HÍBRIDO: Intenta S25 Ultra (Ollama local). Si no está disponible, cae a Groq Cloud API."""
         import requests
         import time
+<<<<<<< HEAD
         from config import GROQ_API_KEY, GROQ_MODEL, GROQ_ENABLED
 
         # 1. INTENTO LOCAL: Probar S25 Ultra (Ktor / Ollama local en celular)
@@ -106,6 +107,28 @@ class Brain:
             )
             if response.status_code == 200 and response.text.strip():
                 print("🧠 [CEREBRO LOCAL] Respuesta recibida desde S25 Ultra")
+=======
+        for attempt in range(max_retries + 1):
+            try:
+                if attempt > 0:
+                    print(f"🔄 Reintentando Texto ({attempt}/{max_retries})...")
+                    time.sleep(1.5)
+                
+                body_data = prompt.encode('utf-8')
+                headers = {
+                    "Content-Type": "text/plain; charset=utf-8",
+                    "Content-Length": str(len(body_data))
+                }
+                
+                response = requests.post(
+                    self.active_url,
+                    data=body_data,     # Texto puro en el body, perfecto para los cócteles
+                    headers=headers,
+                    timeout=30.0        # Restaurado a 30s para evitar fallas de red
+                )
+                response.raise_for_status() # Lanza error para 4xx/5xx
+                
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
                 def chunk_generator():
                     yield response.text
                 return chunk_generator()
@@ -169,22 +192,34 @@ Ve directo al grano (ej: "Veo que tienes un..."). Máximo 2 oraciones."""
         return response
 
     def _load_inventory(self):
+<<<<<<< HEAD
         """Devuelve las bebidas leyendo el inventario.json (con caché en memoria para máxima velocidad)."""
+=======
+        """Devuelve las bebidas leyendo el inventario.json."""
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
         import json
         import os
         from config import ROBOT_ENABLED
         
+<<<<<<< HEAD
         if hasattr(self, "_inventory_cache") and self._inventory_cache is not None:
             return self._inventory_cache
             
         if not ROBOT_ENABLED:
             self._inventory_cache = {
+=======
+        if not ROBOT_ENABLED:
+            return {
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
                 "ingredientes": [],
                 "disponibles": [{"nombre": "Agua (Simulado)"}, {"nombre": "Jugo (Simulado)"}],
                 "no_disponibles": [],
                 "todas": []
             }
+<<<<<<< HEAD
             return self._inventory_cache
+=======
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
             
         try:
             inv_path = os.path.join(os.path.dirname(__file__), "inventario.json")
@@ -201,7 +236,11 @@ Ve directo al grano (ej: "Veo que tienes un..."). Máximo 2 oraciones."""
                     "descripcion": f"Lleva {ing_str}"
                 })
                 
+<<<<<<< HEAD
             self._inventory_cache = {
+=======
+            return {
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
                 "ingredientes": data.get("ingredientes_conectados", []),
                 "disponibles": disponibles,
                 "no_disponibles": [],

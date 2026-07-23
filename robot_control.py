@@ -2,8 +2,12 @@ import requests
 import time
 
 from config import (
+<<<<<<< HEAD
     ROBOT_ENABLED, ROBOT_IP, ROBOT_PORT,
     BOMBAS_CONFIG, RECETAS_COCTELES
+=======
+    ROBOT_ENABLED, ROBOT_IP, ROBOT_PORT
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
 )
 
 class RobotControl:
@@ -15,8 +19,18 @@ class RobotControl:
     def __init__(self):
         self.connected = False
         
+<<<<<<< HEAD
         # Menú de recetas cargado desde la configuración centralizada
         self.drinks_menu = RECETAS_COCTELES
+=======
+        # Menú fijo con tragos ya preparados en cada bomba
+        self.drinks_menu = {
+            "Tormenta Púrpura": {"pump": "pump_1", "cm": 0.01},
+            "Brisa Marina": {"pump": "pump_2", "cm": .5},
+            "Atardecer": {"pump": "pump_3", "cm": 1.25},
+            "La Bandera": {"pump": "pump_4", "cm": 1.85}
+        }
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
         
         if not ROBOT_ENABLED:
             print("🤖 [ROBOT] Integración con Raspberry Pi desactivada en la configuración.")
@@ -28,6 +42,7 @@ class RobotControl:
         self.connected = False
         url = f"http://{ROBOT_IP}:{ROBOT_PORT}/status"
         try:
+<<<<<<< HEAD
             print(f"[ROBOT] Verificando conexion HTTP con Raspberry Pi en {url}...")
             res = requests.get(url, timeout=3.0)
             if res.status_code == 200:
@@ -41,6 +56,21 @@ class RobotControl:
 
     def send_drink_command(self, robot_command):
         """Orquesta la preparación secuencial multibomba desde Windows hacia el esclavo Pi."""
+=======
+            print(f"🤖 [ROBOT] Verificando conexión HTTP con Raspberry Pi en {url}...")
+            res = requests.get(url, timeout=3.0)
+            if res.status_code == 200:
+                self.connected = True
+                print("🤖 [ROBOT] ✅ Conexión establecida con Raspberry Pi (HTTP). Modo Maestro-Esclavo.")
+            else:
+                print(f"🤖 [ROBOT] ⚠️ La Raspberry Pi respondió con código {res.status_code}.")
+        except Exception as e:
+            print(f"🤖 [ROBOT] ⚠️ No se pudo conectar a la Raspberry Pi en {url}.")
+            print("   MIA funcionará normalmente, pero el hardware no se activará.")
+
+    def send_drink_command(self, robot_command):
+        """Orquesta la preparación desde Windows enviando los pasos al esclavo Pi."""
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
         if not self.connected:
             self.connect()
             if not self.connected:
@@ -50,6 +80,7 @@ class RobotControl:
         if robot_command.startswith("PREPARAR:"):
             drink_name = robot_command.replace("PREPARAR:", "", 1).strip()
             
+<<<<<<< HEAD
         # Buscar el trago en el recetario (ignorando mayúsculas)
         match_name = None
         match_recipe = None
@@ -111,6 +142,42 @@ class RobotControl:
         if not self.connected: return True
         
         print("[ROBOT] Esperando a que la Raspberry Pi termine fisicamente...")
+=======
+        # Buscar el trago en el menú (ignorando mayúsculas)
+        match = None
+        for name, data in self.drinks_menu.items():
+            if name.lower() in drink_name.lower():
+                match = data
+                break
+                
+        if not match:
+            print(f"🤖 [ROBOT] ❌ El trago '{drink_name}' no está en las bombas.")
+            return False
+            
+        target_cm = match["cm"]
+        pump_key = match["pump"]
+        amount_ml = 60 # Servimos 60mL en vez de 150mL
+        
+        print(f"🤖 [ROBOT] Enviando orden de preparación de {drink_name} a Raspberry Pi...")
+        url = f"http://{ROBOT_IP}:{ROBOT_PORT}/prepare"
+        
+        try:
+            res = requests.post(url, json={"pump": pump_key, "amount_ml": amount_ml, "cm": target_cm}, timeout=5.0)
+            if res.status_code == 200:
+                print(f"🤖 [ROBOT] ✅ Orden recibida. Raspberry Pi preparará la bebida en segundo plano.")
+                return True
+            else:
+                print(f"🤖 [ROBOT] ⚠️ Raspberry Pi rechazó la orden. Código: {res.status_code}")
+                return False
+        except Exception as e:
+            print(f"🤖 [ROBOT] ❌ Error enviando comando a Raspberry Pi: {e}")
+            return False
+
+    def wait_for_drink_ready(self, timeout=120):
+        if not self.connected: return True
+        
+        print("🤖 [ROBOT] Esperando a que la Raspberry Pi termine físicamente...")
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
         url = f"http://{ROBOT_IP}:{ROBOT_PORT}/status"
         start_time = time.time()
         
@@ -120,11 +187,20 @@ class RobotControl:
                 if res.status_code == 200:
                     data = res.json()
                     if not data.get("busy", False):
+<<<<<<< HEAD
                         print("[ROBOT] [SUCCESS] La Raspberry Pi ha finalizado la preparacion.")
+=======
+                        print("🤖 [ROBOT] ✅ La Raspberry Pi ha finalizado la preparación.")
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
                         return True
             except:
                 pass
             time.sleep(2)
             
+<<<<<<< HEAD
         print("[ROBOT] [WARNING] Timeout esperando a que la maquina termine.")
         return True
+=======
+        print("🤖 [ROBOT] ⚠️ Timeout esperando a que la máquina termine.")
+        return True
+>>>>>>> 177b6e5c8a87771b162a202845ee5d0a516403c6
