@@ -1,220 +1,297 @@
-import chromadb
-import time
+"""
+MIA - Gestor de Memoria por Sesión (RAM) + Estadísticas Anónimas (JSON)
+
+Diseño (C6):
+- Datos personales del cliente actual (nombre, alérgenos, conversaciones, hechos, último pedido)
+  viven EXCLUSIVAMENTE en RAM (`self._session`) y expiran tras `SESSION_TIMEOUT_SECONDS`
+  de inactividad (o al llamar `reset_session()`). Nunca se heredan entre clientes ni tras reiniciar.
+- En disco (`bar_stats.json`) solo se persisten métricas agregadas anónimas (conteo por bebida).
+"""
+
 import os
-from config import MEMORY_DIR, MEMORY_RESULTS_LIMIT
+import sys
+import json
+import time
+import threading
+
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except AttributeError:
+    pass
+
+from config import MEMORY_DIR, MEMORY_RESULTS_LIMIT, SESSION_TIMEOUT_SECONDS
+
+STATS_FILE = os.path.join(MEMORY_DIR, "bar_stats.json")
+PROFILE_FILE = STATS_FILE  # Alias por compatibilidad
 
 
 class Memory:
-    """Memoria a largo plazo de MIA usando ChromaDB (base de datos vectorial).
+    """Memoria efímera por sesión de cliente en RAM y estadísticas anónimas en disco."""
 
-    Almacena y recupera información semántica de forma persistente:
-    - conversations: Diálogos pasados (pregunta + respuesta)
-    - knowledge: Hechos, preferencias y datos aprendidos sobre Fernando
+    def __init__(self, filepath=STATS_FILE, session_timeout=SESSION_TIMEOUT_SECONDS):
+        self.filepath = filepath
+        self.session_timeout = session_timeout
+        self._lock = threading.Lock()
+        os.makedirs(os.path.dirname(self.filepath) or ".", exist_ok=True)
 
-    Todo funciona 100% offline, persiste en disco.
-    """
+        self._session = self._fresh_session()
+        self.stats_data = {
+            "total_orders": 0,
+            "drink_counts": {},
+            "recent_orders": []
+        }
+        self._load_stats()
+        print(f"🧬 [MEMORY] Memoria por sesión en RAM activa (timeout={self.session_timeout}s); stats en: {self.filepath}")
 
-    def __init__(self):
-        # Crear directorio de persistencia si no existe
-        os.makedirs(MEMORY_DIR, exist_ok=True)
+    @staticmethod
+    def _fresh_session():
+        return {
+            "user_name": None,
+            "favorite_drink": None,
+            "last_order": None,
+            "allergens": [],
+            "facts": [],
+            "conversations": [],
+            "last_activity": time.time(),
+        }
 
-        print(f"🧬 Inicializando memoria vectorial en: {MEMORY_DIR}")
+    def _load_stats(self):
+        with self._lock:
+            if os.path.exists(self.filepath):
+                try:
+                    with open(self.filepath, "r", encoding="utf-8") as f:
+                        saved = json.load(f)
+                        if isinstance(saved, dict):
+                            self.stats_data["total_orders"] = int(saved.get("total_orders", 0))
+                            if isinstance(saved.get("drink_counts"), dict):
+                                self.stats_data["drink_counts"] = dict(saved["drink_counts"])
+                            if isinstance(saved.get("recent_orders"), list):
+                                self.stats_data["recent_orders"] = list(saved["recent_orders"])
+                except Exception as e:
+                    print(f"⚠️ [MEMORY] Error leyendo {self.filepath}: {e}")
 
-        # Cliente persistente (datos en disco)
-        self._client = chromadb.PersistentClient(path=MEMORY_DIR)
-
-        # Colecciones
-        self._conversations = self._client.get_or_create_collection(
-            name="conversations",
-            metadata={"description": "Historial de conversaciones con Fernando"}
-        )
-        self._knowledge = self._client.get_or_create_collection(
-            name="knowledge",
-            metadata={"description": "Hechos y datos aprendidos"}
-        )
-
-        conv_count = self._conversations.count()
-        know_count = self._knowledge.count()
-        print(f"🧬 Memoria lista — {conv_count} conversaciones, {know_count} conocimientos almacenados")
+    def _save_stats(self):
+        temp_path = f"{self.filepath}.tmp"
+        try:
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(self.stats_data, f, ensure_ascii=False, indent=2)
+            os.replace(temp_path, self.filepath)
+        except Exception as e:
+            print(f"⚠️ [MEMORY] Error guardando estadísticas en disco: {e}")
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
-    # Conversaciones
+    # Control de Sesión (RAM)
+    # ------------------------------------------------------------------
+
+    def _check_session_expiry_locked(self):
+        if self.session_timeout > 0:
+            elapsed = time.time() - self._session.get("last_activity", 0)
+            if elapsed > self.session_timeout:
+                self._session = self._fresh_session()
+                print("🧹 [MEMORY] Sesión anterior expirada por inactividad; memoria de cliente limpia.")
+                return True
+        return False
+
+    def touch_session(self):
+        """Verifica si la sesión expiró y actualiza el timestamp de última actividad.
+        Retorna True si la sesión acababa de expirar y fue reiniciada."""
+        with self._lock:
+            expired = self._check_session_expiry_locked()
+            self._session["last_activity"] = time.time()
+            return expired
+
+    def reset_session(self):
+        """Reinicia manualmente la sesión del cliente actual (mantiene stats anónimas)."""
+        with self._lock:
+            self._session = self._fresh_session()
+        print("🧹 [MEMORY] Sesión de cliente reiniciada manualmente.")
+
+    # ------------------------------------------------------------------
+    # Alérgenos de la Sesión
+    # ------------------------------------------------------------------
+
+    def add_session_allergens(self, allergens):
+        if not allergens:
+            return
+        with self._lock:
+            self._check_session_expiry_locked()
+            current = self._session["allergens"]
+            for a in allergens:
+                if a and a not in current:
+                    current.append(a)
+            self._session["last_activity"] = time.time()
+
+    def get_session_allergens(self):
+        with self._lock:
+            self._check_session_expiry_locked()
+            return list(self._session["allergens"])
+
+    # ------------------------------------------------------------------
+    # Perfil del Cliente de la Sesión Actual (RAM)
+    # ------------------------------------------------------------------
+
+    def get_user_name(self):
+        with self._lock:
+            self._check_session_expiry_locked()
+            return self._session.get("user_name")
+
+    def set_user_name(self, name):
+        if not name or not isinstance(name, str):
+            return
+        clean_name = name.strip().capitalize()
+        with self._lock:
+            self._check_session_expiry_locked()
+            self._session["user_name"] = clean_name
+            self._session["last_activity"] = time.time()
+        print(f"🧬 [MEMORY] Nombre guardado en sesión actual: {clean_name}")
+
+    def get_favorite_drink(self):
+        with self._lock:
+            self._check_session_expiry_locked()
+            return self._session.get("favorite_drink")
+
+    def set_favorite_drink(self, drink):
+        if not drink:
+            return
+        with self._lock:
+            self._check_session_expiry_locked()
+            self._session["favorite_drink"] = drink.strip()
+            self._session["last_activity"] = time.time()
+
+    def record_order(self, drink_name):
+        if not drink_name:
+            return
+        with self._lock:
+            self._check_session_expiry_locked()
+            self._session["last_order"] = drink_name
+            self._session["last_activity"] = time.time()
+
+            # Métricas anónimas en disco
+            self.stats_data["total_orders"] = int(self.stats_data.get("total_orders", 0)) + 1
+            counts = self.stats_data.setdefault("drink_counts", {})
+            counts[drink_name] = int(counts.get(drink_name, 0)) + 1
+            recent = self.stats_data.setdefault("recent_orders", [])
+            recent.append({"drink": drink_name, "timestamp": time.time()})
+            self.stats_data["recent_orders"] = recent[-50:]
+            self._save_stats()
+
+    def get_last_order(self):
+        with self._lock:
+            self._check_session_expiry_locked()
+            return self._session.get("last_order")
+
+    def get_profile_summary(self):
+        with self._lock:
+            self._check_session_expiry_locked()
+            parts = []
+            if self._session.get("user_name"):
+                parts.append(f"El cliente actual se llama {self._session['user_name']}.")
+            if self._session.get("allergens"):
+                parts.append(f"Alergias declaradas en esta sesión: {', '.join(self._session['allergens'])}.")
+            if self._session.get("favorite_drink"):
+                parts.append(f"Su bebida favorita es {self._session['favorite_drink']}.")
+            if self._session.get("last_order"):
+                parts.append(f"Su último pedido en esta sesión fue {self._session['last_order']}.")
+            return " ".join(parts)
+
+    # ------------------------------------------------------------------
+    # Conversaciones y Hechos de la Sesión (RAM)
     # ------------------------------------------------------------------
 
     def store_conversation(self, user_message, mia_response, visual_context=""):
-        """Almacena un turno de conversación en la memoria a largo plazo.
-
-        El documento combina la pregunta y respuesta para búsqueda semántica.
-        Los metadatos permiten filtrar y reconstruir el diálogo.
-        """
-        timestamp = time.time()
-        doc_id = f"conv_{int(timestamp * 1000)}"
-
-        # Combinar pregunta + respuesta como documento buscable
-        document = f"Cliente preguntó: {user_message}\nMIA respondió: {mia_response}"
-
-        metadata = {
-            "user_message": user_message[:500],     # Limitar tamaño de metadatos
-            "mia_response": mia_response[:500],
-            "visual_context": visual_context[:300] if visual_context else "",
-            "timestamp": timestamp,
-            "type": "conversation"
-        }
-
-        try:
-            self._conversations.add(
-                documents=[document],
-                metadatas=[metadata],
-                ids=[doc_id]
-            )
-        except Exception as e:
-            print(f"⚠️ Error guardando conversación en memoria: {e}")
+        with self._lock:
+            self._check_session_expiry_locked()
+            convs = self._session["conversations"]
+            convs.append({
+                "user_message": (user_message or "")[:200],
+                "mia_response": (mia_response or "")[:200],
+                "timestamp": time.time()
+            })
+            self._session["conversations"] = convs[-20:]
+            self._session["last_activity"] = time.time()
 
     def recall_conversations(self, query, n_results=None):
-        """Busca conversaciones pasadas semánticamente similares al query.
-
-        Retorna lista de dict con: user_message, mia_response, timestamp
-        """
         if n_results is None:
             n_results = MEMORY_RESULTS_LIMIT
-
-        if self._conversations.count() == 0:
-            return []
-
-        # No pedir más resultados de los que existen
-        n_results = min(n_results, self._conversations.count())
-
-        try:
-            results = self._conversations.query(
-                query_texts=[query],
-                n_results=n_results
-            )
-
-            memories = []
-            if results and results["metadatas"] and results["metadatas"][0]:
-                for i, meta in enumerate(results["metadatas"][0]):
-                    distance = results["distances"][0][i] if results.get("distances") else None
-                    memories.append({
-                        "user_message": meta.get("user_message", ""),
-                        "mia_response": meta.get("mia_response", ""),
-                        "visual_context": meta.get("visual_context", ""),
-                        "timestamp": meta.get("timestamp", 0),
-                        "relevance": 1 - (distance or 0)  # Convertir distancia a relevancia
-                    })
-
-            return memories
-
-        except Exception as e:
-            print(f"⚠️ Error buscando en memoria: {e}")
-            return []
-
-    # ------------------------------------------------------------------
-    # Base de conocimiento
-    # ------------------------------------------------------------------
+        with self._lock:
+            self._check_session_expiry_locked()
+            convs = self._session["conversations"]
+            if not convs:
+                return []
+            q_words = set((query or "").lower().split())
+            scored = []
+            for c in convs:
+                msg_words = set(c["user_message"].lower().split())
+                score = len(q_words & msg_words)
+                scored.append((score, c))
+            scored.sort(key=lambda x: x[0], reverse=True)
+            return [c for score, c in scored[:n_results] if score > 0 or len(scored) == 1]
 
     def store_knowledge(self, fact, category="general"):
-        """Almacena un hecho o dato aprendido.
-
-        Categorías sugeridas: 'preferencia', 'dato_personal', 'general', 'instruccion'
-        """
-        timestamp = time.time()
-        doc_id = f"know_{int(timestamp * 1000)}"
-
-        metadata = {
-            "category": category,
-            "timestamp": timestamp,
-            "type": "knowledge"
-        }
-
-        try:
-            self._knowledge.add(
-                documents=[fact],
-                metadatas=[metadata],
-                ids=[doc_id]
-            )
-            print(f"🧬 Conocimiento almacenado [{category}]: {fact[:80]}...")
-        except Exception as e:
-            print(f"⚠️ Error guardando conocimiento: {e}")
+        if not fact:
+            return
+        with self._lock:
+            self._check_session_expiry_locked()
+            facts = self._session["facts"]
+            facts.append({
+                "fact": fact[:200],
+                "category": category,
+                "timestamp": time.time()
+            })
+            self._session["facts"] = facts[-30:]
+            self._session["last_activity"] = time.time()
+        print(f"🧬 [MEMORY] Hecho en sesión [{category}]: {fact[:60]}")
 
     def recall_knowledge(self, query, n_results=None):
-        """Busca hechos/conocimientos relevantes al query."""
         if n_results is None:
             n_results = MEMORY_RESULTS_LIMIT
+        with self._lock:
+            self._check_session_expiry_locked()
+            facts = self._session["facts"]
+            if not facts:
+                return []
+            q_lower = (query or "").lower()
+            matched = [f for f in facts if any(w in f["fact"].lower() for w in q_lower.split() if len(w) > 3)]
+            if not matched:
+                matched = facts[-n_results:]
+            return matched[:n_results]
 
-        if self._knowledge.count() == 0:
-            return []
+    def get_total_orders(self):
+        with self._lock:
+            return int(self.stats_data.get("total_orders", 0))
 
-        n_results = min(n_results, self._knowledge.count())
-
-        try:
-            results = self._knowledge.query(
-                query_texts=[query],
-                n_results=n_results
-            )
-
-            facts = []
-            if results and results["documents"] and results["documents"][0]:
-                for i, doc in enumerate(results["documents"][0]):
-                    meta = results["metadatas"][0][i] if results["metadatas"] else {}
-                    facts.append({
-                        "fact": doc,
-                        "category": meta.get("category", "general"),
-                        "timestamp": meta.get("timestamp", 0)
-                    })
-
-            return facts
-
-        except Exception as e:
-            print(f"⚠️ Error buscando conocimiento: {e}")
-            return []
-
-    # ------------------------------------------------------------------
-    # Utilidades
-    # ------------------------------------------------------------------
+    def get_most_popular_drink(self):
+        """Retorna (drink_name, count) del cóctel más pedido o (None, 0) si aún no hay pedidos."""
+        with self._lock:
+            counts = self.stats_data.get("drink_counts", {})
+            if not counts:
+                return None, 0
+            top_drink = max(counts.items(), key=lambda kv: kv[1])
+            return top_drink[0], int(top_drink[1])
 
     def get_stats(self):
-        """Retorna estadísticas de la memoria"""
-        return {
-            "conversations": self._conversations.count(),
-            "knowledge": self._knowledge.count()
-        }
+        with self._lock:
+            self._check_session_expiry_locked()
+            return {
+                "user_name": self._session.get("user_name"),
+                "allergens": list(self._session.get("allergens", [])),
+                "conversations": len(self._session["conversations"]),
+                "knowledge": len(self._session["facts"]),
+                "orders": int(self.stats_data.get("total_orders", 0)),
+                "drink_counts": dict(self.stats_data.get("drink_counts", {})),
+            }
 
-    def format_memories_for_prompt(self, query):
-        """Busca memorias relevantes y las formatea para incluir en un prompt LLM.
-
-        Combina conversaciones pasadas + conocimiento en un texto conciso.
-        """
-        sections = []
-
-        # Buscar conversaciones relevantes (limitado defensivamente)
-        conversations = self.recall_conversations(query, n_results=MEMORY_RESULTS_LIMIT)
-        if conversations:
-            conv_lines = []
-            for mem in conversations:
-                # Filtrar negativas de memoria para evitar bucles de "no recuerdo"
-                m_resp_lower = mem.get('mia_response', '').lower()
-                bad_keywords = ["no tengo memoria", "no tengo recuerdos", "no guardo", "no poseo memoria", "como asistente", "asistente virtual", "problemas para conectarme"]
-                if any(kw in m_resp_lower for kw in bad_keywords):
-                    continue
-
-                # Truncar los mensajes recuperados para evitar saturación de tokens (máx 512 en el S25)
-                u_msg = mem['user_message'][:80]
-                m_resp = mem['mia_response'][:120]
-                conv_lines.append(
-                    f"- Cliente dijo: \"{u_msg}\" "
-                    f"→ Respondiste: \"{m_resp}\""
-                )
-            if conv_lines:
-                sections.append(
-                    "Recuerdos de conversaciones pasadas:\n" + "\n".join(conv_lines)
-                )
-
-        # Buscar conocimiento relevante
-        knowledge = self.recall_knowledge(query, n_results=MEMORY_RESULTS_LIMIT)
-        if knowledge:
-            fact_lines = [f"- {k['fact'][:100]}" for k in knowledge]
-            sections.append(
-                "Datos que recuerdas:\n" + "\n".join(fact_lines)
-            )
-
-        return "\n\n".join(sections) if sections else ""
+    def clear(self):
+        with self._lock:
+            self._session = self._fresh_session()
+            self.stats_data = {
+                "total_orders": 0,
+                "drink_counts": {},
+                "recent_orders": []
+            }
+            self._save_stats()

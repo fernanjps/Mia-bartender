@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.env
+mia_memory/
+temp_vision.jpg
+venv/
+.venv/
+.pytest_cache/

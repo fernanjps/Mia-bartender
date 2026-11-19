@@ -117,6 +117,14 @@
             display: flex;
             justify-content: space-between;
             gap: 20px;
+            cursor: pointer;
+            padding: 6px 8px;
+            border-radius: 8px;
+        }
+        .menu-item:hover {
+            background: rgba(0, 240, 255, 0.15);
+            color: #fff;
+            transform: translateX(4px);
         }
         .menu-item .pump {
             color: #00f0ff;
@@ -127,6 +135,11 @@
             text-shadow: 0 0 10px #00f0ff;
             transform: scale(1.05);
             margin-left: 10px;
+        }
+        .menu-item.unavailable {
+            opacity: 0.45;
+            text-decoration: line-through;
+            cursor: not-allowed;
         }
 
         /* Responsive Layout */
@@ -232,24 +245,46 @@
         .thinking-animation {
             animation: breathing 2s ease-in-out infinite;
         }
+        #test-panel {
+            position: fixed; right: 14px; bottom: 14px; z-index: 50;
+            display: flex; gap: 6px; align-items: center;
+            background: rgba(0,0,0,0.45); padding: 6px; border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.12); opacity: 0.55; transition: opacity .2s;
+        }
+        #test-panel:hover, #test-panel.active { opacity: 1; }
+        #test-panel button {
+            width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25);
+            background: transparent; color: #fff; font-size: 1.05rem; cursor: pointer;
+        }
+        #test-panel button.on { background: #ff3366; border-color: #ff3366; box-shadow: 0 0 12px #ff3366; }
+        #btn-wake.on { background: #00aa66; border-color: #00ff88; box-shadow: 0 0 12px #00ff88; }
+        #test-input {
+            width: 0; padding: 0; border: none; outline: none; background: rgba(255,255,255,0.08);
+            color: #fff; border-radius: 16px; height: 32px; transition: width .2s, padding .2s;
+        }
+        #test-panel:hover #test-input, #test-input:focus { width: 180px; padding: 0 10px; }
+        #test-status {
+            position: absolute; bottom: 52px; right: 0; white-space: nowrap;
+            font-size: .75rem; color: #aaa; text-shadow: 0 0 4px #000;
+        }
     </style>
 </head>
 <body>
     <div id="particles-bg"></div>
     
-    <!-- Drink Menu Overlay -->
+    <!-- Drink Menu Overlay (Táctil / Clicable para competencia) -->
     <div id="drink-menu">
-        <div class="menu-title">Drinks Menu</div>
-        <div class="menu-item" id="menu-paloma">
+        <div class="menu-title">Drinks Menu (Toca para pedir)</div>
+        <div class="menu-item" id="menu-paloma" data-drink="Paloma">
             <span>Paloma</span> <span class="pump">[1]</span>
         </div>
-        <div class="menu-item" id="menu-margarita">
+        <div class="menu-item" id="menu-margarita" data-drink="Margarita con toronja">
             <span>Margarita con toronja</span> <span class="pump">[2]</span>
         </div>
-        <div class="menu-item" id="menu-citrus">
+        <div class="menu-item" id="menu-citrus" data-drink="Tequila Citrus">
             <span>Tequila Citrus</span> <span class="pump">[3]</span>
         </div>
-        <div class="menu-item" id="menu-paloma-dulce">
+        <div class="menu-item" id="menu-paloma-dulce" data-drink="Paloma Dulce">
             <span>Paloma Dulce</span> <span class="pump">[4]</span>
         </div>
     </div>
@@ -278,13 +313,27 @@
             <p id="subtitle-text">...</p>
         </div>
     
-    <!-- Eliminados: Botones físicos, todo se maneja por celular nativo -->
+    <!-- Panel de pruebas y control rápido de competencia -->
+    <div id="test-panel">
+        <button id="btn-mic" title="Clic para hablar">🎤</button>
+        <button id="btn-wake" title="Escucha continua de 'Hey MIA'">👂</button>
+        <button id="btn-eye" title="Activar cámara espía USB-C (¿Qué ves?)">👁️</button>
+        <button id="btn-reset" title="Nuevo cliente (Reiniciar sesión)">🔄</button>
+        <input id="test-input" type="text" placeholder="Escribe a MIA…" autocomplete="off">
+        <div id="test-status"></div>
+    </div>
 
     <!-- SOCKET IO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 
     <script>
-        const socket = io();
+        const _urlParams = new URLSearchParams(window.location.search);
+        const _urlToken = (_urlParams.get('token') || '').trim();
+        if (_urlToken) {
+            sessionStorage.setItem('mia_api_token', _urlToken);
+        }
+        const _apiToken = sessionStorage.getItem('mia_api_token') || '';
+        const socket = io(_apiToken ? { auth: { token: _apiToken } } : {});
 
         const stateText = document.getElementById('state-text');
         const subtitleText = document.getElementById('subtitle-text');
@@ -300,6 +349,13 @@
             statusLabel.style.color = '#00ff88';
             // Pedir al servidor que emita el estado actual
             socket.emit('request_state');
+        });
+
+        socket.on('connect_error', () => {
+            statusDot.style.background = '#ff3366';
+            statusDot.style.boxShadow = '0 0 8px #ff3366';
+            statusLabel.textContent = 'Token requerido (?token=...)';
+            statusLabel.style.color = '#ff3366';
         });
 
         socket.on('disconnect', () => {
@@ -375,7 +431,8 @@
 
         // Analizador simple de emociones por palabras clave
         function analyzeEmotion(text) {
-            if (!text) return 'neutral';
+            if (text && typeof text === 'object') text = text.text;
+            if (!text || typeof text !== 'string') return 'neutral';
             text = text.toLowerCase();
             
             if (text.match(/llorar|lloro|despedida|llorando|lágrimas/)) return 'llorando';
@@ -504,11 +561,37 @@
             updateMouth();
         }
 
+        let speechMouthTimer = null;
+
+        function startSpeechMouthAnimation() {
+            stopSpeechMouthAnimation();
+            const frames = getSpeakingFrames(currentEmotion);
+            const seq = [imgMap.hablando_semi_abierta, imgMap.hablando_media_abierta, imgMap.hablando_pronunciando, frames.closed];
+            let idx = 0;
+            isTalking = true;
+            speechMouthTimer = setInterval(() => {
+                if (!isPlaying) {
+                    stopSpeechMouthAnimation();
+                    return;
+                }
+                avatarImg.src = seq[idx % seq.length];
+                idx++;
+            }, 130);
+        }
+
+        function stopSpeechMouthAnimation() {
+            if (speechMouthTimer) {
+                clearInterval(speechMouthTimer);
+                speechMouthTimer = null;
+            }
+        }
+
         function stopTalkingAnimation() {
             isTalking = false;
             lastMouthState = 'closed';
             lastMouthStateChangeTime = 0;
             smoothAverage = 0;
+            stopSpeechMouthAnimation();
             if (monitorInterval) {
                 cancelAnimationFrame(monitorInterval);
                 monitorInterval = null;
@@ -535,10 +618,11 @@
 
         // Mapeo seguro de estados visuales 
         let allAudioReceived = false;
+        let isPreparingDrink = false;
 
         socket.on('state_update', (data) => {
             const state = data.state;
-            const text = data.text || '';
+            const text = (data.text && typeof data.text === 'object') ? (data.text.text || '') : String(data.text || '');
 
             // Limpiar clases de animación previas y detener temporizadores de pensar
             avatarImg.classList.remove('thinking-animation');
@@ -568,6 +652,7 @@
                     break;
 
                 case 'idle':
+                    isPreparingDrink = false;
                     document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
                     stateText.textContent = 'DURMIENDO';
                     stateText.style.color = '#444';
@@ -581,19 +666,31 @@
                     break;
 
                 case 'preparing_drink':
+                    isPreparingDrink = true;
                     stateText.textContent = 'PREPARANDO';
                     stateText.style.color = '#ff8800';
                     subtitleText.textContent = 'Preparando: ' + text;
                     avatarImg.src = imgMap.feliz;
                     avatarImg.style.boxShadow = '0 0 30px #ff8800';
                     
-                    // Resaltar en el menú
+                    // Resaltar dinámicamente en el menú
                     document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-                    let drinkClass = text.toLowerCase().replace(" ", "");
-                    if (drinkClass.includes("paloma") && !drinkClass.includes("dulce")) document.getElementById("menu-paloma")?.classList.add("active");
-                    if (drinkClass.includes("margarita")) document.getElementById("menu-margarita")?.classList.add("active");
-                    if (drinkClass.includes("citrus")) document.getElementById("menu-citrus")?.classList.add("active");
-                    if (drinkClass.includes("dulce")) document.getElementById("menu-paloma-dulce")?.classList.add("active");
+                    const targetDrink = text.toLowerCase().trim();
+                    let matchedEl = null;
+                    document.querySelectorAll('.menu-item[data-drink]').forEach(el => {
+                        if ((el.getAttribute('data-drink') || '').toLowerCase() === targetDrink) {
+                            matchedEl = el;
+                        }
+                    });
+                    if (matchedEl) {
+                        matchedEl.classList.add('active');
+                    } else {
+                        let drinkClass = targetDrink.replace(" ", "");
+                        if (drinkClass.includes("paloma") && !drinkClass.includes("dulce")) document.getElementById("menu-paloma")?.classList.add("active");
+                        if (drinkClass.includes("margarita")) document.getElementById("menu-margarita")?.classList.add("active");
+                        if (drinkClass.includes("citrus")) document.getElementById("menu-citrus")?.classList.add("active");
+                        if (drinkClass.includes("dulce")) document.getElementById("menu-paloma-dulce")?.classList.add("active");
+                    }
                     break;
 
                 case 'listening':
@@ -644,30 +741,37 @@
                 currentAudio.pause();
                 currentAudio.currentTime = 0;
             }
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
             isPlaying = false;
             stopTalkingAnimation();
         });
 
-        // --- Cola de Audio para Streaming (Chunked TTS) ---
+        // --- Cola de Audio para Streaming (Chunked TTS + Respaldo Offline) ---
         let audioQueue = [];
         let isPlaying = false;
         let currentAudio = null;
 
         socket.on('play_audio_chunk', (data) => {
-            const audioB64 = data.audio_b64;
-            const text = data.text;
-            
+            const audioB64 = data.audio_b64 || '';
+            const text = data.text || '';
+
             // Analizar la emoción del fragmento que llega (Legacy fallback)
             const newEmot = analyzeEmotion(text);
             if(newEmot !== 'neutral') currentEmotion = newEmot;
-            
-            // Pre-cargar y decodificar el objeto Audio inmediatamente en memoria
-            const audioObj = new Audio("data:audio/mp3;base64," + audioB64);
-            audioObj.preload = "auto";
-            
-            // Lo encolamos ya instanciado para reproducirse sin delay
+
+            let audioObj = null;
+            if (audioB64) {
+                // Soporta tanto MP3 (Edge-TTS) como WAV (espeak-ng offline)
+                const mime = audioB64.startsWith('UklGR') ? 'audio/wav' : 'audio/mp3';
+                audioObj = new Audio("data:" + mime + ";base64," + audioB64);
+                audioObj.preload = "auto";
+            }
+
+            // Lo encolamos ya instanciado para reproducirse sin delay (o null para speechSynthesis offline)
             audioQueue.push({ audio: audioObj, text: text, emotion: currentEmotion });
-            
+
             // Si no estamos reproduciendo nada, iniciar el proceso
             if (!isPlaying) {
                 playNextInQueue();
@@ -685,6 +789,15 @@
                     allAudioReceived = false;
                 }
                 
+                // Si el robot sigue sirviendo físicamente, mantener estado PREPARANDO en vez de dormir
+                if (isPreparingDrink) {
+                    stateText.textContent = 'PREPARANDO';
+                    stateText.style.color = '#ff8800';
+                    avatarImg.src = imgMap.feliz;
+                    avatarImg.style.boxShadow = '0 0 30px #ff8800';
+                    return;
+                }
+
                 // Dormir
                 stateText.textContent = 'DURMIENDO';
                 stateText.style.color = '#444';
@@ -705,7 +818,23 @@
             avatarImg.style.boxShadow = '0 0 40px rgba(255, 207, 0, 0.6)';
 
             currentAudio = chunk.audio;
-            
+            if (!currentAudio) {
+                // Fallback 100% offline usando Web Speech Synthesis del navegador
+                if ('speechSynthesis' in window && chunk.text) {
+                    const utter = new SpeechSynthesisUtterance(chunk.text);
+                    const isEn = /\b(the|is|your|i'm|preparing|cocktail|sorry|please|sure|would)\b/i.test(chunk.text);
+                    utter.lang = isEn ? 'en-US' : 'es-MX';
+                    utter.onstart = () => startSpeechMouthAnimation();
+                    utter.onend = () => { stopSpeechMouthAnimation(); playNextInQueue(); };
+                    utter.onerror = () => { stopSpeechMouthAnimation(); playNextInQueue(); };
+                    startSpeechMouthAnimation();
+                    window.speechSynthesis.speak(utter);
+                } else {
+                    setTimeout(playNextInQueue, 1500);
+                }
+                return;
+            }
+
             try {
                 initAudioContext(currentAudio);
             } catch (e) {
@@ -742,6 +871,199 @@
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
+        }
+
+        // --- Panel de Pruebas (Micrófono Web, Hey MIA continuo y Entrada de Texto) ---
+        const testInput = document.getElementById('test-input');
+        const testStatus = document.getElementById('test-status');
+        const btnMic = document.getElementById('btn-mic');
+        const btnWake = document.getElementById('btn-wake');
+        const btnEye = document.getElementById('btn-eye');
+        const btnReset = document.getElementById('btn-reset');
+
+        // Pedidos táctiles con 1 toque desde el menú en pantalla (dinámico o estático)
+        function bindMenuClicks() {
+            document.querySelectorAll('.menu-item[data-drink]').forEach((item) => {
+                if (item.classList.contains('unavailable')) return;
+                item.onclick = () => {
+                    const slotId = item.getAttribute('data-id');
+                    const drink = item.getAttribute('data-drink');
+                    const cmdText = slotId ? ('sírveme el cóctel ' + slotId) : ('prepara una ' + drink);
+                    unlockAudio();
+                    socket.emit('user_command', { text: cmdText });
+                    if (testStatus) {
+                        testStatus.textContent = '🍹 Pedido: ' + (drink || cmdText);
+                        setTimeout(() => { if (testStatus.textContent.startsWith('🍹')) testStatus.textContent = ''; }, 3000);
+                    }
+                };
+            });
+        }
+        bindMenuClicks();
+
+        // Sincronizar menú en tiempo real desde inventario.json (nombres, IDs [1..N] y agotados)
+        socket.on('menu_update', (data) => {
+            const container = document.getElementById('drink-menu');
+            const drinks = (data && Array.isArray(data.drinks)) ? data.drinks : null;
+            if (!container || !drinks || drinks.length === 0) return;
+
+            container.innerHTML = '<div class="menu-title">Drinks Menu (Toca para pedir)</div>';
+            drinks.forEach((d, i) => {
+                const slotId = d.id || (i + 1);
+                const el = document.createElement('div');
+                el.className = 'menu-item' + (d.available === false ? ' unavailable' : '');
+                el.setAttribute('data-drink', d.nombre || '');
+                el.setAttribute('data-id', String(slotId));
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = d.nombre || ('Cóctel ' + slotId);
+                const pumpSpan = document.createElement('span');
+                pumpSpan.className = 'pump';
+                pumpSpan.textContent = d.available === false ? '[AGOTADO]' : ('[' + slotId + ']');
+
+                el.appendChild(nameSpan);
+                el.appendChild(pumpSpan);
+                container.appendChild(el);
+            });
+            bindMenuClicks();
+        });
+
+        if (btnEye) {
+            btnEye.addEventListener('click', () => {
+                unlockAudio();
+                socket.emit('request_vision', {});
+                if (testStatus) {
+                    testStatus.textContent = '👁️ Analizando cámara USB-C...';
+                    setTimeout(() => { if (testStatus.textContent.startsWith('👁️')) testStatus.textContent = ''; }, 4000);
+                }
+            });
+        }
+
+        if (btnReset) {
+            btnReset.addEventListener('click', () => {
+                unlockAudio();
+                socket.emit('reset_session');
+                if (testStatus) {
+                    testStatus.textContent = '🔄 Nuevo cliente listo';
+                    setTimeout(() => { if (testStatus.textContent.startsWith('🔄')) testStatus.textContent = ''; }, 3000);
+                }
+            });
+        }
+
+        if (testInput) {
+            testInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const val = testInput.value.trim();
+                    if (val) {
+                        unlockAudio();
+                        socket.emit('user_command', { text: val });
+                        testInput.value = '';
+                        if (testStatus) {
+                            testStatus.textContent = 'Enviado: ' + val;
+                            setTimeout(() => { if (testStatus.textContent.startsWith('Enviado:')) testStatus.textContent = ''; }, 3000);
+                        }
+                    }
+                }
+            });
+        }
+
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (SpeechRec) {
+            // 1. Micrófono manual (Push-to-talk / clic para hablar)
+            const singleRec = new SpeechRec();
+            singleRec.lang = 'es-ES';
+            singleRec.continuous = false;
+            singleRec.interimResults = false;
+
+            singleRec.onstart = () => {
+                if (btnMic) btnMic.classList.add('on');
+                if (testStatus) testStatus.textContent = '🎤 Escuchando...';
+            };
+            singleRec.onresult = (e) => {
+                const text = e.results[0][0].transcript;
+                if (testStatus) testStatus.textContent = '🗣️ "' + text + '"';
+                unlockAudio();
+                socket.emit('user_command', { text: text });
+            };
+            singleRec.onerror = (e) => {
+                console.warn("SpeechRec error:", e);
+                if (testStatus) testStatus.textContent = 'Error mic: ' + (e.error || '');
+                setTimeout(() => { if (testStatus.textContent.startsWith('Error')) testStatus.textContent = ''; }, 3000);
+            };
+            singleRec.onend = () => {
+                if (btnMic) btnMic.classList.remove('on');
+                setTimeout(() => { if (testStatus.textContent.startsWith('🗣️')) testStatus.textContent = ''; }, 3000);
+            };
+
+            if (btnMic) {
+                btnMic.addEventListener('click', () => {
+                    unlockAudio();
+                    try { singleRec.start(); } catch(err) { singleRec.stop(); }
+                });
+            }
+
+            // 2. Modo Wake Word continuo en el navegador ("Hey MIA")
+            const wakeRec = new SpeechRec();
+            wakeRec.lang = 'es-ES';
+            wakeRec.continuous = true;
+            wakeRec.interimResults = true;
+            let isWakeActive = false;
+
+            wakeRec.onresult = (e) => {
+                // Anti-eco en navegador: ignorar micrófono mientras MIA reproduce su propia voz
+                if (isPlaying) return;
+                for (let i = e.resultIndex; i < e.results.length; ++i) {
+                    const transcript = e.results[i][0].transcript;
+                    const cleanT = transcript.toLowerCase();
+                    if (testStatus) testStatus.textContent = '👂 ' + cleanT;
+                    if (cleanT.includes('hey mia') || cleanT.includes('oye mia') || cleanT.includes('mia')) {
+                        if (e.results[i].isFinal) {
+                            unlockAudio();
+                            socket.emit('user_command', { text: transcript });
+                            if (testStatus) testStatus.textContent = '🔔 ' + cleanT;
+                        }
+                    }
+                }
+            };
+
+            wakeRec.onend = () => {
+                if (isWakeActive) {
+                    try { wakeRec.start(); } catch(err) {}
+                } else {
+                    if (btnWake) btnWake.classList.remove('on');
+                    if (testStatus) testStatus.textContent = '';
+                }
+            };
+
+            wakeRec.onerror = (e) => {
+                if (e.error !== 'no-speech') {
+                    console.warn("WakeRec error:", e);
+                }
+            };
+
+            if (btnWake) {
+                btnWake.addEventListener('click', () => {
+                    unlockAudio();
+                    isWakeActive = !isWakeActive;
+                    if (isWakeActive) {
+                        btnWake.classList.add('on');
+                        if (testStatus) testStatus.textContent = '👂 Escuchando "Hey MIA"...';
+                        try { wakeRec.start(); } catch(err) {}
+                    } else {
+                        btnWake.classList.remove('on');
+                        if (testStatus) testStatus.textContent = '👂 Detenido';
+                        try { wakeRec.stop(); } catch(err) {}
+                        setTimeout(() => { testStatus.textContent = ''; }, 1500);
+                    }
+                });
+            }
+        } else {
+            if (btnMic) {
+                btnMic.addEventListener('click', () => {
+                    alert('Tu navegador no soporta Web Speech API. Usa Google Chrome o Edge, o escribe en el campo de texto.');
+                });
+            }
+            if (btnWake) btnWake.style.display = 'none';
         }
     </script>
 </body>

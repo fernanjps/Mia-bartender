@@ -1,24 +1,28 @@
 {
   "bebidas": [
     {
-      "nombre": "Margarita",
-      "ingredientes": ["Margarita (lista)"],
-      "descripcion": "El famoso cóctel mexicano, perfecto balance entre ácido y dulce."
+      "nombre": "Paloma",
+      "ingredientes": ["Tequila", "Refresco de toronja (Witi)", "Jugo de limón"],
+      "alcohol": true,
+      "descripcion": "El clásico cóctel mexicano refrescante con tequila, toronja y toque cítrico de limón."
     },
     {
-      "nombre": "Cuba Libre",
-      "ingredientes": ["Cuba Libre (lista)"],
-      "descripcion": "El trago cubano clásico con ron y Coca-Cola."
+      "nombre": "Margarita con toronja",
+      "ingredientes": ["Tequila", "Licor de naranja", "Jugo de limón", "Refresco de toronja (Witi)"],
+      "alcohol": true,
+      "descripcion": "Variante cítrica de la margarita con notas de toronja y licor de naranja."
     },
     {
-      "nombre": "Mojito",
-      "ingredientes": ["Mojito (listo)"],
-      "descripcion": "Un clásico trago refrescante y aromático."
+      "nombre": "Tequila Citrus",
+      "ingredientes": ["Tequila", "Jugo de limón", "Licor de naranja"],
+      "alcohol": true,
+      "descripcion": "Trago directo con tequila, toque dulce de licor de naranja y acidez balanceada de limón (sin toronja)."
     },
     {
-      "nombre": "Tequila Sunrise",
-      "ingredientes": ["Tequila Sunrise (listo)"],
-      "descripcion": "Trago visualmente espectacular con capas de colores vibrantes."
+      "nombre": "Paloma Dulce",
+      "ingredientes": ["Tequila", "Refresco de toronja (Witi)", "Licor de naranja", "Jugo de limón"],
+      "alcohol": true,
+      "descripcion": "Versión más dulce y aromática de la paloma con licor de naranja."
     }
   ]
 }
